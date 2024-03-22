@@ -47,18 +47,10 @@ const int W = 9;
 const int EN_U = 6;
 const int EN_V = 5;
 const int EN_W = 3;
- 
-int duty = 40;
 
-volatile double angle = 0.0;
 volatile double last_angle = 0.0;
 volatile double intent_angle = 168.0; //(upright position)
 double integrator = 0;       //for PID - I controller
-
-double speed;
-float speed_init = 0.003;
-double error = 0.0;
-double control = 0.0; 
 
 double lowerBorderAngle = 0.0;
 double upperBorderAngle = 0.0;
@@ -85,46 +77,38 @@ int debug = 0;
 extern "C" {
   void CCU40_0_IRQHandler(void)
   { 
-    double raw_angle = 0.0;                        //! raw angle value from -180deg to 180deg
-    int16_t revolutions = 0;                       //! number of revolutions
+    double raw_angle = 0.0;
+    int16_t revolutions = 0;
+    int16_t phaseShift = PhaseShift;
 
     Tle5012SensorSPI2.getAngleValue(raw_angle);
     Tle5012SensorSPI2.getNumRevolutions(revolutions);
-
     double angle360 = raw_angle >=0     //! this will synchronize real ange to intended angle
           ? raw_angle
           : 360 + raw_angle;
+    double angle = revolutions * 360 + angle360;
 
-    angle = revolutions * 360 + angle360;
-
-    speed = last_angle-angle;                      //! calculate speed
+    double error = intent_angle - angle;
+    double speed = last_angle - angle;                      //! calculate speed
     last_angle = angle;                            //! update "last angle"
 
-    error = intent_angle-angle;
     integrator = constrain(integrator + error,-100, 100);
-    control = error * P + integrator * I + speed * D; 
-    if (control > 0){PhaseShift = abs(PhaseShift);}   //turn clockwise
-    if (control < 0){PhaseShift = abs(PhaseShift) * -1;}   //turn counterclockwise
-    duty = constrain(abs(control),0,255); //Limit output to meaningful range
+    double control = error * P + integrator * I + speed * D; 
 
-    int angle_table = angle360*10+PhaseShift+offset;
+    if (control < 0){phaseShift *= -1;}                                                     //! turn counterclockwise
+    int16_t duty = constrain(abs(control),0,255);                                           //! Limit output to meaningful range
+
+    int16_t angle_table = angle360 * resolution + phaseShift + offset;
     if (angle_table >= arraySize) {angle_table -=3600;} 
     if (angle_table < 0000) {angle_table +=3600;} 
 
-    int pwmOne   = myPWM_U_values[angle_table];
-    int pwmTwo   = myPWM_V_values[angle_table];
-    int pwmThree = myPWM_W_values[angle_table];
-
-    analogWrite(U, duty*pwmOne   / 100); 
-    analogWrite(V, duty*pwmTwo   / 100); 
-    analogWrite(W, duty*pwmThree / 100);  
+    analogWrite(U, duty * myPWM_U_values[angle_table] / 100); 
+    analogWrite(V, duty * myPWM_V_values[angle_table] / 100); 
+    analogWrite(W, duty * myPWM_W_values[angle_table] / 100);  
 
     debug++;
     if (debug>1000) {
-      Serial.print(angle_table);
-      Serial.print(";");
-      Serial.println(angle*10+PhaseShift+offset);
-      printDebug();
+      printDebug(angle, error, speed, control, revolutions, duty);
     }
   }
 }
@@ -197,11 +181,11 @@ void loop() {
         // Set intended angle with +/-
         if(input == 55)
         {
-            intent_angle+=10;
+            intent_angle+=10000;
         }
         if(input == 56)
         {
-            intent_angle-=10; 
+            intent_angle-=10000; 
         }
 
         // Set intended angle with +/-
@@ -244,6 +228,25 @@ void loop() {
             I-=0.01;
         }
 
+        // set motor offset
+        if(input == 115)
+        {
+            offset+=1;
+        }
+        if(input == 97)
+        {
+            offset-=1;
+        }
+
+        // set motor offset
+        if(input == 119)
+        {
+            PhaseShift+=1;
+        }
+        if(input == 113)
+        {
+            PhaseShift-=1;
+        }
 
         // set actual intent angle as lower border angle
         if(input == 52)
@@ -262,7 +265,7 @@ void loop() {
         }
 
         // w = writes the PID, border angles and default starting angle
-        if (input == 119)
+        if (input == 101)
         {
             writePID(filename_pid);
         }
@@ -272,19 +275,19 @@ void loop() {
 }
 
 
-void printDebug()
+void printDebug(double angle, double error,double speed,double control,int16_t revolutions,int16_t duty)
 {
-  Serial.print(P); Serial.print("\t");
-  Serial.print(I); Serial.print("\t");
-  Serial.print(D); Serial.print("\t");
-  Serial.print(error*P); Serial.print("\t");
-  Serial.print(integrator * I); Serial.print("\t");
-  Serial.print(speed * D); Serial.print("\t");
-  Serial.print(control); Serial.print("\t");
-  Serial.print(duty); Serial.print("\t");
-  Serial.print(PhaseShift); Serial.print("\t");
-  Serial.print(angle); Serial.print("\t");
-  Serial.println(intent_angle);
+  Serial.print("\tP: "); Serial.print(P); 
+  Serial.print("\tI: "); Serial.print(I);
+  Serial.print("\tD: "); Serial.print(D);
+  Serial.print("\te: "); Serial.print(error*P);
+  Serial.print("\ti: "); Serial.print(integrator * I);
+  Serial.print("\ts: "); Serial.print(speed * D);
+  Serial.print("\tc: "); Serial.print(control);
+  Serial.print("\td: "); Serial.print(duty);
+  Serial.print("\tr: "); Serial.print(revolutions);
+  Serial.print("\t");    Serial.print(angle);
+  Serial.print("\t");    Serial.println(intent_angle);
   debug = 0;
 }
 

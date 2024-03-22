@@ -64,6 +64,24 @@ extern "C" {
 
 
 /**
+ * @brief Blinks the given LED with the given end state
+ *
+ * @param led integer of the LED which to blink
+ * @param state boolean end state of the LED, either HIGH or LOW
+ */
+void blink(int8_t led, boolean state)
+{
+  for (int8_t i=0;i<5;i++)
+  {
+    digitalWrite(led, !state);
+    delay(10);
+    digitalWrite(led, state);
+  }
+  delay(50);
+}
+
+
+/**
  * @brief Initialized all joints with sensor and shield, set basic values for the gear factor, 
  * the range limits and startups the jointController
  * 
@@ -134,6 +152,38 @@ void jointInit()
 
 
 /**
+ * @brief checks status of XMC4700 Button 1
+ * The button 1 starts and stops the robot in normal communication mode
+ *
+ */
+ void checkButton1(void)
+ {
+ }
+
+/**
+ * @brief checks status of XMC4700 Button 2
+ * calibrates the offset of each joint.
+ * THis is needed for soft homing
+ */
+void checkButton2(void)
+{
+//   digitalWrite(LED1, HIGH);
+//   digitalWrite(LED2, HIGH);
+
+//   if (!isOffset)
+//   {
+//     axesCalibrate();
+//     isOffset = true;
+//     Serial.println("Offset calibrated");
+//     blink(LED1,HIGH);
+//     blink(LED2,HIGH);
+//     return;
+//   }
+}
+
+
+
+/**
  * @brief Arduino setup function
  * 
  */
@@ -144,7 +194,10 @@ void setup()
     while (!Serial) {}
 
     // set LED pin to output, used to blink when writing
-    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(LED1, OUTPUT);
+    pinMode(LED2, OUTPUT);
+    pinMode(BUTTON1, INPUT);
+    pinMode(BUTTON2, INPUT);
 
     // Setup jointController for each joint
     jointInit();
@@ -158,7 +211,7 @@ void setup()
     XMC_CCU4_Init(CCU40, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
     XMC_CCU4_SLICE_CompareInit(CCU40_CC43, &pwm_config);
     XMC_CCU4_EnableClock(CCU40, 3);
-    XMC_CCU4_SLICE_SetTimerPeriodMatch(CCU40_CC43, 500); // Adjust last Value or Prescaler
+    XMC_CCU4_SLICE_SetTimerPeriodMatch(CCU40_CC43, 200); // Adjust last Value or Prescaler
     /* Enable compare match and period match events */
     XMC_CCU4_SLICE_EnableEvent(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH);
     /* Connect period match event to SR0 */

@@ -39,8 +39,9 @@ class jointController
         } posLimits_t;
 
         typedef struct motorSetup {
-            int16_t offset;                                 //!> motor offset value
-            int16_t phaseShift;                             //!> motor phase shift value
+            int16_t offset;                                 //!> motor offset value for the electrical field
+            int16_t phaseShift;                             //!> motor phase shift value for the electrical field 
+            double sensorOffset;                            //!> sensor offset for the mechanical 0 deg
         } motorSetup_t;
 
         jointController(char *idx);
@@ -55,9 +56,13 @@ class jointController
         void setRangeLimits(double minLimit=0.0, double maxLimit=360.0, double startPos=0.0);
         void setMotorCal(int16_t off,int16_t phase);
         void setGearFactor(double gearFactor=1.0);
+        void setHomingPosition(double startPos=0.0);
         void readFromSD(const char* filename);
 
-        void runToAngle(double intent_angle);
+        double angleInsideRangeLimits(double rawAngle);
+        double calculateAngle(double gf=1.0);
+
+        void runToAngle(double target_angle);
 
 
     private:

@@ -14,31 +14,39 @@
 // For the TLE5012
 #include "Arduino.h"
 
-
 // Pin selection for SPI1 on X1
-#define PIN_SPI1_SS0        35                         //! P0.5
-#define PIN_SPI1_SS1        64                         //! P0.2 
+#define PIN_SPI1_SS0        35                         //! P0.5 X axes
+#define PIN_SPI1_SS1        64                         //! P0.2 Y axes
 #define PIN_SPI1_SS2        66                         //! P0.4 not used
 #define PIN_SPI1_SS3        36                         //! P0.3 not used
 #define PIN_SPI1_MOSI       37                         //! P0.1
 #define PIN_SPI1_MISO       63                         //! P0.0
 #define PIN_SPI1_SCK        38                         //! P0.10
 // Pin selection for SPI2 on X2
-#define PIN_SPI2_SS0        94                         //! P0.12
-#define PIN_SPI2_SS1        93                         //! P0.15
-#define PIN_SPI2_SS2        92                         //! (70,P0.14) changed here to P3.3
-#define PIN_SPI2_SS3        91                         //! (71,P3.14) changed here to P0.8
+#define PIN_SPI2_SS0        94                         //! P0.12 Z axes
+#define PIN_SPI2_SS1        93                         //! P0.15 A axes
+#define PIN_SPI2_SS2        92                         //! (70,P0.14) changed here to P3.3 CR axes
+#define PIN_SPI2_SS3        91                         //! (71,P3.14) changed here to P0.8 CL axes
 #define PIN_SPI2_MOSI       69                         //! P3.11
 #define PIN_SPI2_MISO       95                         //! P3.12
 #define PIN_SPI2_SCK        68                         //! P3.13
 
+// IFX007 Board used as Shield on Arduino Header
+// This is only for test
+#define PIN_PWM_U_SHIELD    11                          //! P3.8
+#define PIN_PWM_V_SHIELD    10                          //! P3.10
+#define PIN_PWM_W_SHIELD    9                           //! P1.11
+#define PIN_PWM_EN_U_SHIELD 6                           //! P1.1
+#define PIN_PWM_EN_V_SHIELD 5                           //! P2.12
+#define PIN_PWM_EN_W_SHIELD 3                           //! P2.11
+
 // IFX007 Board 1 refer as X
-#define PIN_PWM_U1          11                          //! P3.8
+#define PIN_PWM_U1          9                           //! P1.11
 #define PIN_PWM_V1          10                          //! P3.10
-#define PIN_PWM_W1          9                           //! P1.11
-#define PIN_PWM_EN_U1       8                           //! P1.10 (setting for shied 6,P2.11)
+#define PIN_PWM_W1          11                          //! P3.8
+#define PIN_PWM_EN_U1       4                           //! P1.8  (setting for shied 3,P1.1)
 #define PIN_PWM_EN_V1       7                           //! P1.9  (setting for shied 5,P2.12)
-#define PIN_PWM_EN_W1       4                           //! P1.8  (setting for shied 3,P1.1)
+#define PIN_PWM_EN_W1       8                           //! P1.10 (setting for shied 6,P2.11)
 
 // IFX007 Board 2 refer as CR
 #define PIN_PWM_U2          3                           //! P1.1
@@ -79,6 +87,16 @@
 #define PIN_PWM_EN_U6       74                          //! P6.1
 #define PIN_PWM_EN_V6       88                          //! P6.4
 #define PIN_PWM_EN_W6       78                          //! P5.1
+
+// IFX007 Board 7 refer as GRIPPER
+#define PIN_PWM_U6          79                          //! P5.3
+#define PIN_PWM_V6          80                          //! P5.5
+#define PIN_PWM_W6          81                          //! P5.7
+#define PIN_PWM_EN_U6       74                          //! P6.1
+#define PIN_PWM_EN_V6       88                          //! P6.4
+#define PIN_PWM_EN_W6       78                          //! P5.1
+
+
 
 // Gear factors for each of the six joint axes
 #define gearFactorX         13.8

@@ -108,8 +108,8 @@ void jointInit()
     Serial.print("Joint 1 shield: ");  Serial.println(shieldError,HEX);
 
 
-    // link[2] = Z axis, SPI1, CS2,Slave2, index=3, Z axis
-    sensorError = link[2].initSensor(SPI3W1, PIN_SPI1_SS2, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S2);
+    // link[2] = Z axis, SPI2, CS1,Slave0, index=3, Z axis
+    sensorError = link[2].initSensor(SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
     shieldError = link[2].initShield(PIN_PWM_U3,PIN_PWM_V3,PIN_PWM_W3,PIN_PWM_EN_U3,PIN_PWM_EN_V3,PIN_PWM_EN_W3);
     link[2].setGearFactor(gearFactorZ);
     link[2].begin();
@@ -118,8 +118,8 @@ void jointInit()
     Serial.print("Joint 2 shield: ");  Serial.println(shieldError,HEX);
 
 
-    // link[3] = A axis, SPI1, CS3,Slave3, index=4, A axis
-    sensorError = link[3].initSensor(SPI3W1, PIN_SPI1_SS3, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S3);
+    // link[3] = A axis, SPI2, CS2,Slave1, index=4, A axis
+    sensorError = link[3].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
     shieldError = link[3].initShield(PIN_PWM_U4,PIN_PWM_V4,PIN_PWM_W4,PIN_PWM_EN_U4,PIN_PWM_EN_V4,PIN_PWM_EN_W4);
     link[3].setGearFactor(gearFactorA);
     link[3].begin();
@@ -128,8 +128,8 @@ void jointInit()
     Serial.print("Joint 3 shield: ");  Serial.println(shieldError,HEX);
 
 
-    // link[4] = B axis, SPI2, CS1,Slave0, index=5, B axis
-    sensorError = link[4].initSensor(SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
+    // link[4] = B axis, SPI2, CS2,Slave2, index=5, B axis
+    sensorError = link[4].initSensor(SPI3W2, PIN_SPI2_SS2, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S2);
     shieldError = link[4].initShield(PIN_PWM_U5,PIN_PWM_V5,PIN_PWM_W5,PIN_PWM_EN_U5,PIN_PWM_EN_V5,PIN_PWM_EN_W5);
     link[4].setGearFactor(gearFactorB);
     link[4].begin();
@@ -138,8 +138,8 @@ void jointInit()
     Serial.print("Joint 4 shield: ");  Serial.println(shieldError,HEX);
 
 
-    // link[5] = C axis, SPI2, CS1,Slave1, index=6, C axis
-    sensorError = link[5].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
+    // link[5] = C axis, SPI2, CS3,Slave3, index=6, C axis
+    sensorError = link[5].initSensor(SPI3W2, PIN_SPI2_SS3, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S3);
     shieldError = link[5].initShield(PIN_PWM_U6,PIN_PWM_V6,PIN_PWM_W6,PIN_PWM_EN_U6,PIN_PWM_EN_V6,PIN_PWM_EN_W6);
     link[5].setGearFactor(gearFactorC);
     link[5].begin();

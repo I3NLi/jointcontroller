@@ -1,6 +1,7 @@
 
 #include <SD.h>
 #include <tlx5012-arduino.hpp>
+#include "../Arctos2XMC/const.h"
 
 
 using namespace tle5012;
@@ -30,23 +31,21 @@ String buffer;                                    //! string to buffer output
 #define PIN_SPI2_MISO 95                          //! P3.12
 #define PIN_SPI2_SCK  68                          //! P3.13
 
-// tle5012::SPIClass3W tle5012::SPI3W1(1);           //!< SPI port 1 on XMC4700 X1 according HW SPI setup
-// Tle5012Ino Tle5012SensorSPI2 = Tle5012Ino(&SPI3W1, PIN_SPI1_SS0, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S0);
-tle5012::SPIClass3W tle5012::SPI3W2(2);           //!< SPI port 2 on XMC4700 X2 according HW SPI setup <-- change here to SPI3W1 if on other port
+
+// Shield on top test
+tle5012::SPIClass3W tle5012::SPI3W2(2);
 Tle5012Ino Tle5012SensorSPI2 = Tle5012Ino(&SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
+const int U    = PIN_PWM_U_SHIELD;
+const int V    = PIN_PWM_V_SHIELD;
+const int W    = PIN_PWM_W_SHIELD;
+const int EN_U = PIN_PWM_EN_U_SHIELD;
+const int EN_V = PIN_PWM_EN_V_SHIELD;
+const int EN_W = PIN_PWM_EN_W_SHIELD;
+
+
 errorTypes checkError = NO_ERROR;
-
-
-// pin settings the IFX007 (we do not use any analog pin)
-const int U = 11;                                 //! this pin must have PWM available
-const int V = 10;                                 //! this pin must have PWM available
-const int W = 9;                                  //! this pin must have PWM available
-const int EN_U = 6;                               //! this pin is a GPIO
-const int EN_V = 5;                               //! this pin is a GPIO
-const int EN_W = 3;                               //! this pin is a GPIO
-
 int i = 0;
-int duty = 40;                                   //! duty cycle 0-127
+int duty = 820;                                   //! duty cycle 0-127
 
 
 // motor settings
@@ -63,10 +62,10 @@ double amplitudeOne;
 double amplitudeTwo;
 double amplitudeThree;
 
-double angle = 0.0;                               //! measured angle from the TLE5012
+double angle = 0.0;                               //! corrected angle from sensor as 0-360 deg
+double angle_raw = 0.0;                           //! raw value from sensor as -180-180 deg
 float angle_rad = 0.0;                            //! angle in radians
 
-//int offset = 42;                                  //! (this is the offset value found my test motor)
 int offset = 0;                                   //! this value has to found <-- start here always with 0
 int PhaseShift = 0;                               //! this value can be variated
 
@@ -86,29 +85,28 @@ extern "C"
     // TIER1: run motor uncontrolled
     if (millis() < 10000)
     {
-      angle_rad += 0.0175;
-      pwmOne   = 100 * sin(angle_rad);
-      pwmTwo   = 100 * sin(angle_rad + PHASE_DELAY_1);
-      pwmThree = 100 * sin(angle_rad + PHASE_DELAY_2);
-      analogWrite(U, 127 + duty * pwmOne / 100);
-      analogWrite(V, 127 + duty * pwmTwo / 100);
-      analogWrite(W, 127 + duty * pwmThree / 100);
+      angle_rad += 0.0174532925;
 
-      Tle5012SensorSPI2.getAngleValue(angle);
+      pwmOne   = 2048 * sin(angle_rad);
+      pwmTwo   = 2048 * sin(angle_rad + PHASE_DELAY_1);
+      pwmThree = 2048 * sin(angle_rad + PHASE_DELAY_2);
+      analogWrite(U, 2048 + duty * pwmOne   / 2048);
+      analogWrite(V, 2048 + duty * pwmTwo   / 2048);
+      analogWrite(W, 2048 + duty * pwmThree / 2048);
+      Tle5012SensorSPI2.getAngleValue(angle_raw);
 
+      double angle = angle_raw >=0     //! this will synchronize real ange to intended angle
+          ? angle_raw
+          : 360 + angle_raw;
 
-      int angle_out = (angle + 180) * resolution; // 0-3600
-      int pwm_U_out = pwmOne;                     //-100-100
-      int pwm_V_out = pwmTwo;                     //-100-100
-      int pwm_W_out = pwmThree;                   //-100-100
-
-      myPWM_U_values[angle_out] = pwm_U_out;
-      myPWM_V_values[angle_out] = pwm_V_out;
-      myPWM_W_values[angle_out] = pwm_W_out;
+      int angle_out = angle * resolution;         // 0-3600
+      myPWM_U_values[angle_out] = pwmOne;
+      myPWM_V_values[angle_out] = pwmTwo;
+      myPWM_W_values[angle_out] = pwmThree;
     }
 
     // TIER2: print out PWM_U/V/W
-    if (millis() > 10000 && n < arraySize)
+    if (millis() > 10005 && n < arraySize)
     {
       Serial.print(n); Serial.print(", ");
       Serial.print(myPWM_U_values[n]); Serial.print(", ");
@@ -121,8 +119,12 @@ extern "C"
     // TIER3: run motor controlled
     if (millis() > 15000)
     {
-      Tle5012SensorSPI2.getAngleValue(angle);
-      int angle_table = (angle + 180) * resolution + PhaseShift + offset;
+      Tle5012SensorSPI2.getAngleValue(angle_raw);
+      double angle = angle_raw >=0     //! this will synchronize real ange to intended angle
+          ? angle_raw
+          : 360 + angle_raw;
+
+      int angle_table = angle * resolution + PhaseShift + offset;
       if (angle_table >= arraySize )
       {
         angle_table -= arraySize;
@@ -132,13 +134,9 @@ extern "C"
         angle_table += arraySize;
       }
 
-      pwmOne   = myPWM_U_values[angle_table];
-      pwmTwo   = myPWM_V_values[angle_table];
-      pwmThree = myPWM_W_values[angle_table];
-
-      analogWrite(U, 127 + duty * pwmOne   / 100);
-      analogWrite(V, 127 + duty * pwmTwo   / 100);
-      analogWrite(W, 127 + duty * pwmThree / 100);
+      analogWrite(U, 2048 + duty * myPWM_U_values[angle_table] / 2048 );
+      analogWrite(V, 2048 + duty * myPWM_V_values[angle_table] / 2048 );
+      analogWrite(W, 2048 + duty * myPWM_W_values[angle_table] / 2048 );
     }
   }
 }
@@ -156,6 +154,7 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
 
   // Init GPIO for IFX007, 20kHz does not produce any hearable sound
+  analogWriteResolution(12);
   pinMode(U, OUTPUT); setAnalogWriteFrequency(U, 20000);
   pinMode(V, OUTPUT); setAnalogWriteFrequency(V, 20000);
   pinMode(W, OUTPUT); setAnalogWriteFrequency(W, 20000);
@@ -187,7 +186,7 @@ void setup()
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
+    // put your main code here, to run repeatedly:
   while (Serial.available() != 0)
   {
     int input = 0;
@@ -214,6 +213,18 @@ void loop()
       PhaseShift = 0;
       Serial.print("Offset\t"); Serial.println(offset);
     }
+
+        // set motor D value with f/d
+        if(input == 102)
+        {
+            duty+=1;
+            Serial.print("duty\t"); Serial.println(duty);
+        }
+        if(input == 100)
+        {
+            duty-=1;
+            Serial.print("duty\t"); Serial.println(duty);
+        }
 
     // w = writes the PWM array and calibration values
     if (input == 119)

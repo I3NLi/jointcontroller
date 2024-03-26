@@ -22,6 +22,7 @@
 #define PIN_SPI1_MOSI       37                         //! P0.1
 #define PIN_SPI1_MISO       63                         //! P0.0
 #define PIN_SPI1_SCK        38                         //! P0.10
+
 // Pin selection for SPI2 on X2
 #define PIN_SPI2_SS0        94                         //! P0.12 Z axes
 #define PIN_SPI2_SS1        93                         //! P0.15 A axes
@@ -95,8 +96,6 @@
 #define PIN_PWM_EN_U6       74                          //! P6.1
 #define PIN_PWM_EN_V6       88                          //! P6.4
 #define PIN_PWM_EN_W6       78                          //! P5.1
-
-
 
 // Gear factors for each of the six joint axes
 #define gearFactorX         13.8

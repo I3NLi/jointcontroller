@@ -22,6 +22,7 @@ jointController::jointController(char *idx)
     index               = *idx;
 
     mGearFactor         = 1.0;
+    mPWMResolution      = 2048;
 
     mPid.P              = 0.0;
     mPid.I              = 0.0;
@@ -278,7 +279,7 @@ void jointController:: _readMotorCalibration(char* filename)
         txtFile = SD.open(filename);
         if (txtFile) {
             digitalWrite(LED1, HIGH);
-            setPID(txtFile.parseFloat(),txtFile.parseFloat(),txtFile.parseFloat());
+            setPID(txtFile.parseInt(),txtFile.parseFloat(),txtFile.parseFloat());
             setRangeLimits(txtFile.parseFloat(),txtFile.parseFloat(),txtFile.parseFloat());
             setMotorCal(txtFile.parseInt(),txtFile.parseInt());
             txtFile.close();
@@ -332,7 +333,7 @@ void jointController::runToAngle(double target_angle)
     if (angleTable < 0000) {angleTable += 3600;}
 
     // motor setting
-    analogWrite(pin_U, duty * PWM_U_values[angleTable] / 100);                              //! set the PWM values to the U/V/W pins
-    analogWrite(pin_V, duty * PWM_V_values[angleTable] / 100);
-    analogWrite(pin_W, duty * PWM_W_values[angleTable] / 100);
+    analogWrite(pin_U, duty * PWM_U_values[angleTable] / mPWMResolution );                  //! set the PWM values to the U/V/W pins
+    analogWrite(pin_V, duty * PWM_V_values[angleTable] / mPWMResolution );
+    analogWrite(pin_W, duty * PWM_W_values[angleTable] / mPWMResolution );
 }

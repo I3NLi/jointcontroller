@@ -58,6 +58,7 @@ double defaultAngle = 0.0;
 
 
 //! PWM array variables
+int PWMresolution = 2048;
 const int resolution = 10;                        //! array resolution 10 = 0.1 deg <-- change array size here
 const int arraySize = 360 * resolution;           //! array size for 360 deg
 
@@ -83,6 +84,7 @@ extern "C" {
 
     Tle5012SensorSPI2.getAngleValue(raw_angle);
     Tle5012SensorSPI2.getNumRevolutions(revolutions);
+
     double angle360 = raw_angle >=0     //! this will synchronize real ange to intended angle
           ? raw_angle
           : 360 + raw_angle;
@@ -96,19 +98,19 @@ extern "C" {
     double control = error * P + integrator * I + speed * D; 
 
     if (control < 0){phaseShift *= -1;}                                                     //! turn counterclockwise
-    int16_t duty = constrain(abs(control),0,255);                                           //! Limit output to meaningful range
+    int16_t duty = constrain(abs(control),0,2048);                                           //! Limit output to meaningful range
 
     int16_t angle_table = angle360 * resolution + phaseShift + offset;
     if (angle_table >= arraySize) {angle_table -=3600;} 
     if (angle_table < 0000) {angle_table +=3600;} 
 
-    analogWrite(U, duty * myPWM_U_values[angle_table] / 100); 
-    analogWrite(V, duty * myPWM_V_values[angle_table] / 100); 
-    analogWrite(W, duty * myPWM_W_values[angle_table] / 100);  
+    analogWrite(U,  2048 + duty * myPWM_U_values[angle_table] / PWMresolution ); 
+    analogWrite(V,  2048 + duty * myPWM_V_values[angle_table] / PWMresolution ); 
+    analogWrite(W,  2048 + duty * myPWM_W_values[angle_table] / PWMresolution );  
 
     debug++;
     if (debug>1000) {
-      printDebug(angle, error, speed, control, revolutions, duty);
+      printDebug(angle, angle360, error, speed, control, revolutions, duty);
     }
   }
 }
@@ -124,18 +126,19 @@ void setup() {
   checkError = Tle5012SensorSPI2.begin();
   Tle5012SensorSPI2.resetFirmware();
 
+  analogWriteResolution(12);
   pinMode(U, OUTPUT);  setAnalogWriteFrequency(U,20000);
   pinMode(V, OUTPUT);  setAnalogWriteFrequency(V,20000);
   pinMode(W, OUTPUT);  setAnalogWriteFrequency(W,20000);
 
-  pinMode(EN_U, OUTPUT);  digitalWrite(EN_U, HIGH);
+  pinMode(EN_U, OUTPUT);  digitalWrite(EN_V, HIGH);
   pinMode(EN_V, OUTPUT);  digitalWrite(EN_V, HIGH);
   pinMode(EN_W, OUTPUT);  digitalWrite(EN_W, HIGH);
 
   Serial.println("init done");
   delay(1000);
   // read values from SD card
-  readCalibration(filename_cal);
+  readCalibration(filename_pid);
   readPWMArray(filename_pwm);
   Serial.println("values read");
   delay(5000);
@@ -275,7 +278,7 @@ void loop() {
 }
 
 
-void printDebug(double angle, double error,double speed,double control,int16_t revolutions,int16_t duty)
+void printDebug(double angle, double angle360,double error,double speed,double control,int16_t revolutions,int16_t duty)
 {
   Serial.print("\tP: "); Serial.print(P); 
   Serial.print("\tI: "); Serial.print(I);
@@ -283,8 +286,9 @@ void printDebug(double angle, double error,double speed,double control,int16_t r
   Serial.print("\te: "); Serial.print(error*P);
   Serial.print("\ti: "); Serial.print(integrator * I);
   Serial.print("\ts: "); Serial.print(speed * D);
-  Serial.print("\tc: "); Serial.print(control);
+  Serial.print("\t\tc: "); Serial.print(control);
   Serial.print("\td: "); Serial.print(duty);
+  Serial.print("\ta: "); Serial.print(angle360);
   Serial.print("\tr: "); Serial.print(revolutions);
   Serial.print("\t");    Serial.print(angle);
   Serial.print("\t");    Serial.println(intent_angle);
@@ -343,12 +347,24 @@ void readCalibration(const char* filename)
     txtFile = SD.open(filename);
     if (txtFile) {
       digitalWrite(LED_BUILTIN, HIGH);
-      offset = txtFile.parseInt();
-      PhaseShift = txtFile.parseInt();
+      P                = txtFile.parseFloat();
+      I                = txtFile.parseFloat();
+      D                = txtFile.parseFloat();
+      upperBorderAngle = txtFile.parseFloat();
+      lowerBorderAngle = txtFile.parseFloat();
+      defaultAngle     = txtFile.parseFloat();
+      offset           = txtFile.parseInt();
+      PhaseShift       = txtFile.parseInt();
       txtFile.close();
       digitalWrite(LED_BUILTIN, LOW);
-      Serial.print("offset read: ");     Serial.println(offset);
-      Serial.print("PhaseShift read: "); Serial.println(PhaseShift);
+      Serial.print("P read: "); Serial.println(P);
+      Serial.print("I read: "); Serial.println(I);
+      Serial.print("D read: "); Serial.println(D);
+      Serial.print("upperBorderAngle read: "); Serial.println(upperBorderAngle);
+      Serial.print("lowerBorderAngle read: "); Serial.println(lowerBorderAngle);
+      Serial.print("defaultAngle read: ");     Serial.println(defaultAngle);
+      Serial.print("offset read: ");           Serial.println(offset);
+      Serial.print("PhaseShift read: ");       Serial.println(PhaseShift);
     }else{
       Serial.print("error opening ");
       Serial.println(filename);
@@ -381,6 +397,8 @@ void writePID(const char* filename)
       txtFile.println(lowerBorderAngle);
       txtFile.println(upperBorderAngle);
       txtFile.println(defaultAngle);
+      txtFile.println(offset);
+      txtFile.println(PhaseShift);
       digitalWrite(LED_BUILTIN, LOW);
       txtFile.close();
       Serial.print("P: ");Serial.println(P);

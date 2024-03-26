@@ -1,7 +1,7 @@
 
 #include <SD.h>
 #include <tlx5012-arduino.hpp>
-#include "../Arctos2XMC/const.h"
+#include <const.h>
 
 
 using namespace tle5012;

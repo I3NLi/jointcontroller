@@ -24,7 +24,7 @@ const int arraySize  = 360 * resolution;                    //!> array size for 
 class jointController
 {
     public:
-        char index;                                         //!> index number of joint starting with 1 to max jointTotalNum
+        char jointName;                                     //! name of the joint
         Tle5012Ino *sensor;                                 //!> pointer to the tlX501 sensor
         typedef struct pidParm {
             double P;                                       //!> motor P value
@@ -33,8 +33,8 @@ class jointController
         } pidParam_t;
 
         typedef struct posLimits {
-            double minLimit;                                //!> the maximal position in negativ direction in degree
-            double maxLimit;                                //!> the maximal position in positiv direction in degree
+            double minLimit;                                //!> the maximal position in negative direction in degree
+            double maxLimit;                                //!> the maximal position in positive direction in degree
             double startPos;                                //!> variance where |actualPos-setpointPos| <= epsilon is, position is reached
         } posLimits_t;
 
@@ -44,7 +44,7 @@ class jointController
             double sensorOffset;                            //!> sensor offset for the mechanical 0 deg
         } motorSetup_t;
 
-        jointController(char *idx);
+        jointController(char *name);
         ~jointController();
 
         void begin();
@@ -54,6 +54,7 @@ class jointController
 
         void setPID(double P, double I, double D);
         void setRangeLimits(double minLimit=0.0, double maxLimit=360.0, double startPos=0.0);
+        void setPWMResolution(int16_t resolution=2048);
         void setMotorCal(int16_t off,int16_t phase);
         void setGearFactor(double gearFactor=1.0);
         void setHomingPosition(double startPos=0.0);
@@ -67,30 +68,34 @@ class jointController
 
     private:
 
-        File txtFile;                       //! File object to represent file
-        String buffer;                      //! string to buffer output
+        File txtFile;                                   //! File object to represent file
+        String buffer;                                  //! string to buffer output
 
-        uint8_t pin_U;                      //!>
-        uint8_t pin_V;                      //!>
-        uint8_t pin_W;                      //!>
-        uint8_t pin_EN_U;                   //!>
-        uint8_t pin_EN_V;                   //!>
-        uint8_t pin_EN_W;                   //!>
+        errorTypes sensorError = NO_ERROR;              //!> error type for sensors
+        errorTypes shieldError = NO_ERROR;              //!> error type for shields
 
-        motorSetup_t    mMotor;             //!> motor setup values structure
-        posLimits_t     mLimits;            //!> limits structure
-        pidParam_t      mPid;               //!> PID values structure
-        double          mGearFactor = 1.0;  //!> gear factor setting
-        double          mIntegrator = 0.0;  //!> this will sum all the errors for i part of pid controller
-        double          lastAngle   = 0.0;  //!> last Position for pid controller
-        double          intentAngle = 0.0;  //!> last Position for pid controller
+        uint8_t pin_U;                                  //!>
+        uint8_t pin_V;                                  //!>
+        uint8_t pin_W;                                  //!>
+        uint8_t pin_EN_U;                               //!>
+        uint8_t pin_EN_V;                               //!>
+        uint8_t pin_EN_W;                               //!>
 
-        int16_t PWM_U_values[arraySize];    //!> PWM predefined values for U
-        int16_t PWM_V_values[arraySize];    //!> PWM predefined values for V
-        int16_t PWM_W_values[arraySize];    //!> PWM predefined values for W
+        motorSetup_t    mMotor;                         //!> motor setup values structure
+        posLimits_t     mLimits;                        //!> limits structure
+        pidParam_t      mPid;                           //!> PID values structure
+        double          mGearFactor;                    //!> gear factor setting
+        double          mIntegrator;                    //!> this will sum all the errors for i part of pid controller
+        double          mPWMResolution;                 //!> bit resolution of the analog pins
+        double          lastAngle;                      //!> last Position for pid controller
+        double          intentAngle;                    //!> last Position for pid controller
 
-        void _readPWMArray(char* filename);
-        void _readMotorCalibration(char* filename);
+        int16_t PWM_U_values[arraySize];                //!> PWM predefined values for U
+        int16_t PWM_V_values[arraySize];                //!> PWM predefined values for V
+        int16_t PWM_W_values[arraySize];                //!> PWM predefined values for W
+
+        void _readPWMArray(String filename);
+        void _readMotorCalibration(String filename);
 
 };
 

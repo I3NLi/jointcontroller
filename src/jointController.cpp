@@ -16,10 +16,10 @@
  * set all internal variables and structures to default.
  *
  */
-jointController::jointController(char *idx)
+jointController::jointController(char *name)
 {
     this->sensor        = NULL;
-    index               = *idx;
+    jointName           = *name;
 
     mGearFactor         = 1.0;
     mPWMResolution      = 2048;
@@ -51,13 +51,11 @@ jointController::~jointController()
  */
 void jointController::begin()
 {
-    char filename_pwm[] = "pwmX.txt";           //! Filename for motor PWM array <-- change this for different motors
-    char filename_pid[] = "pidX.txt";           //! Filename for motor calibration values <-- change this for different motors
-    filename_pwm[3] = index;
-    filename_pid[3] = index;
+    String cal_file = String(jointName) + String(".txt");
+    String pwm_file = String("PWM_") + String(jointName) + String(".txt");
 
-    _readPWMArray(filename_pwm);
-    _readMotorCalibration(filename_pid);
+    _readPWMArray(pwm_file);
+    _readMotorCalibration( cal_file  );
 }
 
 /**
@@ -75,7 +73,8 @@ void jointController::begin()
 errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t misoPin, uint8_t mosiPin, uint8_t sckPin, Tle5012Ino::slaveNum slave)
 {
     this->sensor = new Tle5012Ino(&bus, csPin, misoPin, mosiPin, sckPin, slave);
-    return sensor->begin();
+    sensorError = sensor->begin();
+    return sensorError;
 }
 
 /**
@@ -116,7 +115,8 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
     digitalWrite(pin_EN_V, HIGH);
     digitalWrite(pin_EN_W, HIGH);
 
-    return NO_ERROR;
+    shieldError = NO_ERROR;
+    return shieldError;
  }
 
 /**
@@ -129,6 +129,18 @@ void jointController::setGearFactor(double gearFactor)
 {
     mGearFactor = gearFactor;
 }
+
+/**
+ * @brief Set the analog pin bit resolution
+ * 
+ * @param resolution resolution value in bit, default = 2048
+ */
+void jointController::setPWMResolution(int16_t resolution)
+{
+    mPWMResolution = resolution;
+    return;
+}
+
 
 /**
  * @brief Set the limits object
@@ -199,6 +211,7 @@ void jointController::setMotorCal(int16_t off, int16_t phase)
 void jointController::setHomingPosition(double startPos)
 {
     errorTypes cA = sensor->resetFirmware();
+    delay(50); //wait until Firmware reset comes back safely
     mLimits.startPos = startPos;
     mMotor.sensorOffset = calculateAngle() * -1;
 }
@@ -235,7 +248,7 @@ double jointController::calculateAngle(double gf)
  * for PWM_U/V/W
  *
  */
-void jointController::_readPWMArray(char* filename)
+void jointController::_readPWMArray(String filename)
 {
     if (!SD.begin()) {
         Serial.println("Card failed, or not present");
@@ -269,7 +282,7 @@ void jointController::_readPWMArray(char* filename)
  * the PID values, the limits and the motor offset and phase shift.
  *
  */
-void jointController:: _readMotorCalibration(char* filename)
+void jointController:: _readMotorCalibration(String filename)
 {
     if (!SD.begin()) {
         Serial.println("Card failed, or not present");
@@ -280,7 +293,6 @@ void jointController:: _readMotorCalibration(char* filename)
         if (txtFile) {
             digitalWrite(LED1, HIGH);
             setPID(txtFile.parseInt(),txtFile.parseFloat(),txtFile.parseFloat());
-            setRangeLimits(txtFile.parseFloat(),txtFile.parseFloat(),txtFile.parseFloat());
             setMotorCal(txtFile.parseInt(),txtFile.parseInt());
             txtFile.close();
             digitalWrite(LED1, LOW);

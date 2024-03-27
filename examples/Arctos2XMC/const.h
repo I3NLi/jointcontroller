@@ -98,9 +98,39 @@
 #define PIN_PWM_EN_W6       78                          //! P5.1
 
 // Gear factors for each of the six joint axes
-#define gearFactorX         13.8
-#define gearFactorY         150.0
-#define gearFactorZ         110.0
-#define gearFactorA         6.0
-#define gearFactorB         5.5
-#define gearFactorC         5.5
+#define gearFactor_X        13.8
+#define gearFactor_Y        150.0
+#define gearFactor_Z        110.0
+#define gearFactor_A        6.0
+#define gearFactor_CR       5.5
+#define gearFactor_CL       5.5
+
+// minimal range limits
+#define minLimit_X         -200.0
+#define minLimit_Y         -125.0
+#define minLimit_Z         -50.0
+#define minLimit_A         -200.0
+#define minLimit_B         -100.0
+#define minLimit_C         -200.0
+#define minLimit_CR        0
+#define minLimit_CL        0
+
+// minimal range limits
+#define maxLimit_X         200.0
+#define maxLimit_Y         75.0
+#define maxLimit_Z         100.0
+#define maxLimit_A         200.0
+#define maxLimit_B         100.0
+#define maxLimit_C         200.0
+#define maxLimit_CR        0
+#define maxLimit_CL        0
+
+// default home position
+#define defaultPos_X       0.0
+#define defaultPos_Y       0.0
+#define defaultPos_Z       0.0
+#define defaultPos_A       0.0
+#define defaultPos_B       0.0
+#define defaultPos_C       0.0
+#define defaultPos_CR      0.0
+#define defaultPos_CL      0.0

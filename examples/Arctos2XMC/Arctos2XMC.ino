@@ -16,7 +16,12 @@ using namespace tle5012;
 tle5012::SPIClass3W tle5012::SPI3W1(1);         //!< SPI port 1 on XMC4700 X1 according HW SPI setup
 tle5012::SPIClass3W tle5012::SPI3W2(2);         //!< SPI port 2 on XMC4700 X2 according HW SPI setup
 
-boolean  isCalibrate   = false;
+boolean isCalibrate   = false;
+boolean isRun         = false;
+
+uint8_t idTimer;
+uint8_t okTimer;
+
 
 /*!
  * Global controller array holds pointers for each joint. Each joint is a combination of
@@ -53,7 +58,7 @@ volatile double intent_angle[jointTotalNum] = {
  * @brief timer interrupt prototype
  * 
  */
-void timerISR1(void);
+void timerISR(void);
 
 
 /**
@@ -134,6 +139,20 @@ void jointInit()
  */
  void checkButton1(void)
  {
+    if (!isRun)
+    {
+        blink(LED1,HIGH);
+
+        if (okTimer > 0){
+            startTask(idTimer);
+            Serial.println("\nTimer interrupt started"); 
+        }
+        isRun = true;
+        delay(100);
+        digitalWrite(LED1, HIGH);
+
+    }
+
  }
 
 /**
@@ -148,32 +167,23 @@ void checkButton2(void)
     if (!isCalibrate) {
 
         for (int8_t i=0; i<jointTotalNum; i++){
-            link[i].setHomingPosition(0.0);
+            double home = link[i].setHomingPosition(0.0);
 
             Serial.print("Homing position set for joint: ");
-            Serial.println(link[i].jointName);
+            Serial.print(link[i].jointName);
+            Serial.print(" = ");
+            Serial.println(home);
+
             blink(LED1,HIGH);
             blink(LED2,HIGH);
         }
+        isCalibrate = true;
+        delay(1000);
+        digitalWrite(LED1, LOW);
+        digitalWrite(LED2, HIGH);
+        Serial.println("All Homing positions set");
 
     }
-    isCalibrate = true;
-
-//   digitalWrite(LED1, HIGH);
-//   digitalWrite(LED2, HIGH);
-
-//   if (!isOffset)
-//   {
-//     axesCalibrate();
-//     isOffset = true;
-//     Serial.println("Offset calibrated");
-//     blink(LED1,HIGH);
-//     blink(LED2,HIGH);
-//     return;
-//   }
-    
-
-
 }
 
 
@@ -187,6 +197,8 @@ void setup()
     // Serial port communication
     Serial.begin(115200);
     while (!Serial) {}
+    delay(5000);
+    Serial.println("\nARCTOS 2 XMC begin setup\n");
 
     // set LED pin to output, used to blink when writing
     pinMode(LED1, OUTPUT);
@@ -196,39 +208,17 @@ void setup()
 
     // Setup jointController for each joint
     jointInit();
-    Serial.println("all joints are ready");
-    delay(5000);
+    Serial.println("All joints are ready");
+    delay(2000);
 
-    // Timer Interrupt settings
-    uint8_t idTimer = addTask( *timerISR1 );
-    uint8_t okTimer = setInterval( idTimer, 10 );
-    if (okTimer > 0){
-        startTask(idTimer);
-        Serial.println("\nTimer interrupt started"); 
-    }
+    // Setup first timer
+    idTimer = addTask( *timerISR );
+    okTimer = setInterval( idTimer, 100 );
+    Serial.println("Timer interrupt added");
 
-    // // Setup Interrupt settings
-    // XMC_CCU4_SLICE_COMPARE_CONFIG_t pwm_config = {0};
-    // pwm_config.passive_level = XMC_CCU4_SLICE_OUTPUT_PASSIVE_LEVEL_HIGH;
-    // pwm_config.prescaler_initval = XMC_CCU4_SLICE_PRESCALER_128;
-    // XMC_CCU4_Init(CCU40, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
-    // XMC_CCU4_SLICE_CompareInit(CCU40_CC43, &pwm_config);
-    // XMC_CCU4_EnableClock(CCU40, 3);
-    // XMC_CCU4_SLICE_SetTimerPeriodMatch(CCU40_CC43, 200); // Adjust last Value or Prescaler
-    // /* Enable compare match and period match events */
-    // XMC_CCU4_SLICE_EnableEvent(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH);
-    // /* Connect period match event to SR0 */
-    // XMC_CCU4_SLICE_SetInterruptNode(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH, XMC_CCU4_SLICE_SR_ID_0);
-    // /* Configure NVIC */
-    // /* Set priority */
-    // NVIC_SetPriority(CCU40_0_IRQn, 10);
-    // /* Enable IRQ */
-    // NVIC_EnableIRQ(CCU40_0_IRQn); 
-    // XMC_CCU4_EnableShadowTransfer(CCU40, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
-    // XMC_CCU4_SLICE_StartTimer(CCU40_CC43);
-
-    Serial.println("timer interrupt sequence started");
-    delay(5000);
+    // setup done
+    delay(2000);
+    Serial.println("\nARCTOS 2 XMC ready\n");
 
 }
 
@@ -239,13 +229,33 @@ void setup()
  */
 void loop()
 {
-
-    if (digitalRead(BUTTON2) == LOW) {
-        checkButton2();
-        delay(100);
-    }else{
-        digitalWrite(LED2, LOW);
+    // Calibrate Button pressed
+    if (!isCalibrate)
+    {
+        if (digitalRead(BUTTON2) == LOW)
+        {
+            checkButton2();
+        }
     }
+
+    // Start run
+    if (isCalibrate && !isRun)
+    {
+        if (digitalRead(BUTTON1) == LOW)
+        {
+            checkButton1();
+        }
+    }
+
+    // Run G-code
+    if (isCalibrate && isRun)
+    {
+
+
+
+    }
+
+
 }
 
 /**
@@ -264,8 +274,10 @@ void jointPosition()
  * @brief Timer callback function runs joints to position
  * 
  */
-void timerISR1(void){
+void timerISR(void){
+    digitalWrite(LED1, HIGH);
     jointPosition();
+    digitalWrite(LED1, LOW);
 }
 
 

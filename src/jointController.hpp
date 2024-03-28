@@ -57,9 +57,9 @@ class jointController
         void setPWMResolution(int16_t resolution=2048);
         void setMotorCal(int16_t off,int16_t phase);
         void setGearFactor(double gearFactor=1.0);
-        void setHomingPosition(double startPos=0.0);
         void readFromSD(const char* filename);
 
+        double setHomingPosition(double startPos=0.0);
         double angleInsideRangeLimits(double rawAngle);
         double calculateAngle(double gf=1.0);
 
@@ -70,6 +70,8 @@ class jointController
 
         File txtFile;                                   //! File object to represent file
         String buffer;                                  //! string to buffer output
+        int16_t debug = 0;
+
 
         errorTypes sensorError = NO_ERROR;              //!> error type for sensors
         errorTypes shieldError = NO_ERROR;              //!> error type for shields

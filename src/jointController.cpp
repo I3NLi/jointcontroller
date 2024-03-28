@@ -52,7 +52,7 @@ jointController::~jointController()
 void jointController::begin()
 {
     String cal_file = String(jointName) + String(".txt");
-    String pwm_file = String("PWM_") + String(jointName) + String(".txt");
+    String pwm_file = String("PWM") + String(jointName) + String(".txt");
 
     _readPWMArray(pwm_file);
     _readMotorCalibration( cal_file  );
@@ -208,12 +208,13 @@ void jointController::setMotorCal(int16_t off, int16_t phase)
  * 
  * @param startPos      the default start position in external degree (without gear factor)
  */
-void jointController::setHomingPosition(double startPos)
+double jointController::setHomingPosition(double startPos)
 {
     errorTypes cA = sensor->resetFirmware();
     delay(50); //wait until Firmware reset comes back safely
     mLimits.startPos = startPos;
     mMotor.sensorOffset = calculateAngle() * -1;
+    return mMotor.sensorOffset;
 }
 
 /**
@@ -266,9 +267,9 @@ void jointController::_readPWMArray(String filename)
                 idx++;
             }
             txtFile.close();
-            digitalWrite(LED1, LOW);
             Serial.print("PWM read finished from: ");
             Serial.println(filename);
+            digitalWrite(LED1, LOW);
         }else{
             Serial.print("error opening ");
             Serial.println(filename);
@@ -292,12 +293,12 @@ void jointController:: _readMotorCalibration(String filename)
         txtFile = SD.open(filename);
         if (txtFile) {
             digitalWrite(LED1, HIGH);
-            setPID(txtFile.parseInt(),txtFile.parseFloat(),txtFile.parseFloat());
             setMotorCal(txtFile.parseInt(),txtFile.parseInt());
+            setPID(txtFile.parseInt(),txtFile.parseFloat(),txtFile.parseFloat());
             txtFile.close();
-            digitalWrite(LED1, LOW);
             Serial.print("PID read finished from : ");
             Serial.println(filename);
+            digitalWrite(LED1, LOW);
         }else{
             Serial.print("error opening ");
             Serial.println(filename);
@@ -305,7 +306,6 @@ void jointController:: _readMotorCalibration(String filename)
     }
     return;
 }
-
 
 /**
  * @brief the run controller moves the motor to the intent position, using the PWM array and calibration for the
@@ -318,7 +318,7 @@ void jointController::runToAngle(double target_angle)
     double raw_angle = 0.0;                                                                 //! raw angle value from -180 deg to 180 deg
     int16_t revolutions = 0;                                                                //! number of revolutions counted as +/- 360 deg
     int16_t phaseShift = mMotor.phaseShift;                                                 //! with positive phaseShift turn clockwise
-
+ 
     // angle calculation
     sensor->getAngleValue(raw_angle);                                                       //! fetch raw angle from sensor
     sensor->getNumRevolutions(revolutions);                                                 //! fetch number of revolutions from sensor
@@ -327,25 +327,47 @@ void jointController::runToAngle(double target_angle)
           : 360 + raw_angle;
     double angle = revolutions * 360 + angle360;
     intentAngle = mGearFactor * target_angle + mMotor.sensorOffset;                         //! calculate target with gear factor and sensorOffset
-
+ 
     // PID calculation
     double error = intentAngle - angle;                                                     //! calculate position error
-    double speed = lastAngle-angle;                                                         //! calculate speed damping
+    double speed = lastAngle - angle;                                                       //! calculate speed damping
     lastAngle = angle;                                                                      //! update "last angle"
     mIntegrator = constrain( mIntegrator + error, -100, 100);                               //! integral factor
     double control = error * mPid.P + mIntegrator * mPid.I + speed * mPid.D;                //! calculate PID controller
-
+ 
     // duty cycle calculation
     if (control < 0){phaseShift *= -1;}                                                     //! turn counterclockwise
-    int16_t duty = constrain(abs(control),0,255);                                           //! Limit output to meaningful range
-
+    int16_t duty = constrain(abs(control),0,mPWMResolution);                                //! Limit output to meaningful range
+ 
     // PWM table fetch
     int16_t angleTable = angle360 * resolution + phaseShift + mMotor.offset;                //! find the PWM array position
     if (angleTable >= arraySize) {angleTable -= 3600;}                                      //! round trip in the  PWM array
     if (angleTable < 0000) {angleTable += 3600;}
-
+ 
     // motor setting
-    analogWrite(pin_U, duty * PWM_U_values[angleTable] / mPWMResolution );                  //! set the PWM values to the U/V/W pins
-    analogWrite(pin_V, duty * PWM_V_values[angleTable] / mPWMResolution );
-    analogWrite(pin_W, duty * PWM_W_values[angleTable] / mPWMResolution );
+    analogWrite(pin_U, mPWMResolution + duty * PWM_U_values[angleTable] / mPWMResolution );                  //! set the PWM values to the U/V/W pins
+    analogWrite(pin_V, mPWMResolution + duty * PWM_V_values[angleTable] / mPWMResolution );
+    analogWrite(pin_W, mPWMResolution + duty * PWM_W_values[angleTable] / mPWMResolution );
+
+    // debug++;
+    // if (debug>100) {
+        //Serial.print(jointName);
+        // Serial.print("  a: ");Serial.print(angle);
+        // Serial.print("  i: ");Serial.print(intentAngle);
+        // Serial.print("  t: ");Serial.print(target_angle);
+        //Serial.println("");
+    //     debug = 0;
+    // }
 }
+
+
+/**
+ * @brief 
+ * 
+ * TODO
+ * 
+ * - min/max detection
+ * - X/Y/Z  A/CR/CL nameing
+ * - secondary interrupt
+ * 
+ */

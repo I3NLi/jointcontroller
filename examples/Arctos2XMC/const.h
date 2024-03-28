@@ -122,8 +122,8 @@
 #define maxLimit_A         200.0
 #define maxLimit_B         100.0
 #define maxLimit_C         200.0
-#define maxLimit_CR        0
 #define maxLimit_CL        0
+#define maxLimit_CR        0
 
 // default home position
 #define defaultPos_X       0.0
@@ -132,5 +132,5 @@
 #define defaultPos_A       0.0
 #define defaultPos_B       0.0
 #define defaultPos_C       0.0
-#define defaultPos_CR      0.0
 #define defaultPos_CL      0.0
+#define defaultPos_CR      0.0

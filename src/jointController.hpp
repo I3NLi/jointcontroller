@@ -28,8 +28,14 @@ class jointController
         Tle5012Ino *sensor;                                 //!> pointer to the tlX501 sensor
         typedef struct pidParm {
             double P;                                       //!> motor P value
-            double I;                                       //!> motor integrator value
-            double D;                                       //!> motor derivative value
+            double I;                                       //!> motor integrator I value
+            double D;                                       //!> motor derivative D value
+            double P_pos;                                   //!> motor position P value
+            double I_pos;                                   //!> motor position integrator I value
+            double D_pos;                                   //!> motor position derivative D value
+            double P_speed;                                 //!> motor speed P value
+            double I_speed;                                 //!> motor speed integrator I value
+            double D_speed;                                 //!> motor speed derivative D value
         } pidParam_t;
 
         typedef struct posLimits {
@@ -44,7 +50,16 @@ class jointController
             double sensorOffset;                            //!> sensor offset for the mechanical 0 deg
         } motorSetup_t;
 
-        jointController(char *name);
+        typedef struct anglePos {
+            double targetAngle;                             //!> external target angle to reach
+            double gearFactor;                              //!> gear factor setting
+            double jointTargetAngle;                        //!> internal joint target angle to reach including gear factor and sensor offset
+            double jointActualAngle;                        //!> internal actual angle reached
+            double jointActualPos;                          //!> internal actual position 0-360° reached
+        } anglePos_t;
+
+
+        jointController(char *name,boolean debugPrint);
         ~jointController();
 
         void begin();
@@ -53,6 +68,8 @@ class jointController
         errorTypes initShield(uint8_t U,uint8_t V,uint8_t W,uint8_t EN_U,uint8_t EN_V,uint8_t EN_W);
 
         void setPID(double P, double I, double D);
+        void setPIDpos(double P_pos, double I_pos, double D_pos);
+        void setPIDspeed(double P_speed, double I_speed, double D_speed);
         void setRangeLimits(double minLimit=0.0, double maxLimit=360.0, double startPos=0.0);
         void setPWMResolution(int16_t resolution=2048);
         void setMotorCal(int16_t off,int16_t phase);
@@ -63,34 +80,44 @@ class jointController
         double angleInsideRangeLimits(double rawAngle);
         double calculateAngle(double gf=1.0);
 
-        void runToAngle(double target_angle);
+        void switchShieldOnOff(int8_t status);
+        void moveTo(double target_angle);
+        void runToAnglePID();
+        void runToAnglePOS();
+        void runToAngleSpeed();
 
+        void motorRunTest();
+
+        motorSetup_t    mMotor;                         //!> motor setup values structure
 
     private:
 
         File txtFile;                                   //! File object to represent file
         String buffer;                                  //! string to buffer output
-        int16_t debug = 0;
-
+        boolean debug = false;                          //! debug printing
 
         errorTypes sensorError = NO_ERROR;              //!> error type for sensors
         errorTypes shieldError = NO_ERROR;              //!> error type for shields
 
-        uint8_t pin_U;                                  //!>
-        uint8_t pin_V;                                  //!>
-        uint8_t pin_W;                                  //!>
-        uint8_t pin_EN_U;                               //!>
-        uint8_t pin_EN_V;                               //!>
-        uint8_t pin_EN_W;                               //!>
+        uint8_t pin_U;                                  //!> U wave for BLDC
+        uint8_t pin_V;                                  //!> ditto V 120 deg ahead
+        uint8_t pin_W;                                  //!> ditto W again 120 deg ahead
+        uint8_t pin_EN_U;                               //!> switch on U channel
+        uint8_t pin_EN_V;                               //!> ditto V channel
+        uint8_t pin_EN_W;                               //!> ditto W channel
 
-        motorSetup_t    mMotor;                         //!> motor setup values structure
         posLimits_t     mLimits;                        //!> limits structure
         pidParam_t      mPid;                           //!> PID values structure
-        double          mGearFactor;                    //!> gear factor setting
-        double          mIntegrator;                    //!> this will sum all the errors for i part of pid controller
+        anglePos_t      mAnglePos;
+
         double          mPWMResolution;                 //!> bit resolution of the analog pins
-        double          lastAngle;                      //!> last Position for pid controller
-        double          intentAngle;                    //!> last Position for pid controller
+        double          mIntegrator;                    //!> this will sum all the errors for i part of pid controller
+        double          mIntegratorSpeed;               //!> speed Integrator for speed/pos PID
+        double          mIntegratorPos;                 //!> position Integrator for speed/pos PID
+        double          mSpeed;                         //!> the intent speed to reach
+        double          lastAngle;                      //!> last angle position with full revolution
+        double          lastPos;                        //!> last position in 0.360 deg
+        double          newPos;                         //!> new postion  for speed/pos PID
 
         int16_t PWM_U_values[arraySize];                //!> PWM predefined values for U
         int16_t PWM_V_values[arraySize];                //!> PWM predefined values for V

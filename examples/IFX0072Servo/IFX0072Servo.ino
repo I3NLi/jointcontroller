@@ -1,6 +1,7 @@
 
 #include <SD.h>
 #include <tlx5012-arduino.hpp>
+#include "const.h"
 
 using namespace tle5012;
 
@@ -13,48 +14,28 @@ String buffer;                                    //! string to buffer output
 
 // For the TLE5012
 
-// Pin selection for SPI1 on X1
-#define PIN_SPI1_SS0   36                         //! P0.3
-#define PIN_SPI1_SS1   64                         //! P0.2
-#define PIN_SPI1_SS2   66                         //! P0.4
-#define PIN_SPI1_SS3   35                         //! P0.5
-#define PIN_SPI1_MOSI  37                         //! P0.1
-#define PIN_SPI1_MISO  63                         //! P0.0
-#define PIN_SPI1_SCK   38                         //! P0.10
-// Pin selection for SPI2 on X2
-#define PIN_SPI2_SS0  94                          //! P0.12
-#define PIN_SPI2_SS1  93                          //! P0.15
-#define PIN_SPI2_SS2  71                          //! P3.14
-#define PIN_SPI2_SS3  70                          //! P0.14
-#define PIN_SPI2_MOSI 69                          //! P3.11
-#define PIN_SPI2_MISO 95                          //! P3.12
-#define PIN_SPI2_SCK  68                          //! P3.13
-
 // tle5012::SPIClass3W tle5012::SPI3W1(1);           //!< SPI port 1 on XMC4700 X1 according HW SPI setup
 // Tle5012Ino Tle5012SensorSPI2 = Tle5012Ino(&SPI3W1, PIN_SPI1_SS0, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S0);
 tle5012::SPIClass3W tle5012::SPI3W2(2); //!< SPI port 2 on XMC4700 X2 according HW SPI setup
 Tle5012Ino Tle5012SensorSPI2 = Tle5012Ino(&SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
+const int U    = PIN_PWM_U_SHIELD;
+const int V    = PIN_PWM_V_SHIELD;
+const int W    = PIN_PWM_W_SHIELD;
+const int EN_U = PIN_PWM_EN_U_SHIELD;
+const int EN_V = PIN_PWM_EN_V_SHIELD;
+const int EN_W = PIN_PWM_EN_W_SHIELD;
+
+
 errorTypes checkError = NO_ERROR;
 
-#define POLEPAIRS 4
-
-#define PHASE_DELAY_1     (double)  2.094395102 //120°
-#define PHASE_DELAY_2     (double)  4.188790205 //240°
-
-const int U = 11;
-const int V = 10; 
-const int W = 9;
-const int EN_U = 6;
-const int EN_V = 5;
-const int EN_W = 3;
-
+volatile double angle = 0.0;
 volatile double last_angle = 0.0;
-volatile double intent_angle = 168.0; //(upright position)
-double integrator = 0;       //for PID - I controller
+volatile double intent_speed = 0;
+double integrator_speed = 0;
+double integrator_pos = 0;
 
-double lowerBorderAngle = 0.0;
-double upperBorderAngle = 0.0;
-double defaultAngle = 0.0;
+int intent_pos = 168.0;
+int intent_pos_new = 0;
 
 
 //! PWM array variables
@@ -63,9 +44,12 @@ const int resolution = 10;                        //! array resolution 10 = 0.1 
 const int arraySize = 360 * resolution;           //! array size for 360 deg
 
 // motor PID
-int    P = 8;                                     //! initial P value can be changed with p = +1, o = -1
-double I = 0;                                     //! initial I value can be changed with i = +0.01, u = -0.01
-double D = 0;                                     //! initial D value can be changed with f = +1, d = -1
+double P_S = 1.0;
+double I_S = 0.0;
+double D_S = 0.0;
+double P_P = 18;
+double I_P = 0.0;
+double D_P = 0.0;
 
 // values to read from SD card array from pwm1.txt and offset/phaseshift from cal1.txt
 int myPWM_U_values[arraySize];
@@ -76,29 +60,60 @@ int PhaseShift = 0;
 int debug = 0;
 
 extern "C" {
+
+  void CCU42_0_IRQHandler(void) //Position control
+  { 
+    double error_pos = 0;
+
+    if(abs(last_angle - angle) < 350.0)
+    {
+      error_pos = last_angle - angle;
+    }
+    last_angle = angle;  
+
+    if(intent_pos_new < intent_pos)
+    {
+       intent_pos_new = intent_pos_new + 1;
+    }
+    if(intent_pos_new > intent_pos)
+    {
+       intent_pos_new = intent_pos_new - 1;
+    }
+    error_pos = intent_pos_new - angle;
+    integrator_pos = constrain(integrator_pos + error_pos,-100, 100);
+    intent_speed= error_pos * P_P + integrator_pos * I_P + error_pos * D_P; 
+  }
+
+
   void CCU40_0_IRQHandler(void)
   { 
     double raw_angle = 0.0;
     int16_t revolutions = 0;
     int16_t phaseShift = PhaseShift;
+    double speed = 0;
 
     Tle5012SensorSPI2.getAngleValue(raw_angle);
     Tle5012SensorSPI2.getNumRevolutions(revolutions);
 
-    double angle360 = raw_angle >=0     //! this will synchronize real ange to intended angle
+    double angle360 = raw_angle >=0
           ? raw_angle
           : 360 + raw_angle;
-    double angle = revolutions * 360 + angle360;
+    angle = revolutions * 360 + angle360;
 
-    double error = intent_angle - angle;
-    double speed = last_angle - angle;                      //! calculate speed
-    last_angle = angle;                            //! update "last angle"
+    speed = last_angle - angle360;
+    if(abs(last_angle - angle360) < 350.0)
+    {
+      speed = constrain ( last_angle - angle360, -0.5, 0.5 );
+    }
+    last_angle = angle360;
+    double error_speed = intent_speed - speed;
+    integrator_speed = constrain(integrator_speed + error_speed,-100, 100);
+    double control_speed = error_speed * P_S + integrator_speed * I_S + speed * D_S; 
 
-    integrator = constrain(integrator + error,-100, 100);
-    double control = error * P + integrator * I + speed * D; 
 
-    if (control < 0){phaseShift *= -1;}                                                     //! turn counterclockwise
-    int16_t duty = constrain(abs(control),0,2048);                                           //! Limit output to meaningful range
+
+    if (control_speed < 0){phaseShift *= -1;}                                                     //! turn counterclockwise
+    int16_t duty = constrain(abs(control_speed),0,2048);                                           //! Limit output to meaningful range
 
     int16_t angle_table = angle360 * resolution + phaseShift + offset;
     if (angle_table >= arraySize) {angle_table -=3600;} 
@@ -110,9 +125,10 @@ extern "C" {
 
     debug++;
     if (debug>1000) {
-      printDebug(angle, angle360, error, speed, control, revolutions, duty);
+      printDebug(angle, angle360, revolutions, duty, angle_table );
     }
   }
+
 }
 
 
@@ -138,7 +154,7 @@ void setup() {
   Serial.println("init done");
   delay(1000);
   // read values from SD card
-  readCalibration(filename_pid);
+  readCalibration(filename_cal);
   readPWMArray(filename_pwm);
   Serial.println("values read");
   delay(5000);
@@ -146,23 +162,33 @@ void setup() {
 
   //Setup Interrupt settings
   XMC_CCU4_SLICE_COMPARE_CONFIG_t pwm_config = {0};
-    pwm_config.passive_level = XMC_CCU4_SLICE_OUTPUT_PASSIVE_LEVEL_HIGH;
-    pwm_config.prescaler_initval = XMC_CCU4_SLICE_PRESCALER_128;
-    XMC_CCU4_Init(CCU40, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
-    XMC_CCU4_SLICE_CompareInit(CCU40_CC43, &pwm_config);
-    XMC_CCU4_EnableClock(CCU40, 3);
-    XMC_CCU4_SLICE_SetTimerPeriodMatch(CCU40_CC43, 500); // Adjust last Value or Prescaler
-    /* Enable compare match and period match events */
-    XMC_CCU4_SLICE_EnableEvent(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH);
-    /* Connect period match event to SR0 */
-    XMC_CCU4_SLICE_SetInterruptNode(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH, XMC_CCU4_SLICE_SR_ID_0);
-    /* Configure NVIC */
-    /* Set priority */
-    NVIC_SetPriority(CCU40_0_IRQn, 10);
-    /* Enable IRQ */
-    NVIC_EnableIRQ(CCU40_0_IRQn); 
-    XMC_CCU4_EnableShadowTransfer(CCU40, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
-    XMC_CCU4_SLICE_StartTimer(CCU40_CC43);
+  pwm_config.passive_level = XMC_CCU4_SLICE_OUTPUT_PASSIVE_LEVEL_HIGH;
+  pwm_config.prescaler_initval = XMC_CCU4_SLICE_PRESCALER_128;
+
+  //interrupt 1
+  XMC_CCU4_Init(CCU40, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
+  XMC_CCU4_SLICE_CompareInit(CCU40_CC43, &pwm_config);
+  XMC_CCU4_EnableClock(CCU40, 3);
+  XMC_CCU4_SLICE_SetTimerPeriodMatch(CCU40_CC43, 500); // Adjust last Value or Prescaler
+  XMC_CCU4_SLICE_EnableEvent(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH);
+  XMC_CCU4_SLICE_SetInterruptNode(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH, XMC_CCU4_SLICE_SR_ID_0);
+  NVIC_SetPriority(CCU40_0_IRQn, 10);
+  NVIC_EnableIRQ(CCU40_0_IRQn); 
+  XMC_CCU4_EnableShadowTransfer(CCU40, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
+  XMC_CCU4_SLICE_StartTimer(CCU40_CC43);
+
+  // //interrupt 2
+  // XMC_CCU4_Init(CCU42, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
+  // XMC_CCU4_SLICE_CompareInit(CCU42_CC43, &pwm_config);
+  // XMC_CCU4_EnableClock(CCU42, 3);
+  // XMC_CCU4_SLICE_SetTimerPeriodMatch(CCU42_CC43, 1000); // Adjust last Value or Prescaler
+  // XMC_CCU4_SLICE_EnableEvent(CCU42_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH);
+  // XMC_CCU4_SLICE_SetInterruptNode(CCU42_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH, XMC_CCU4_SLICE_SR_ID_0); 
+  // NVIC_SetPriority(CCU42_0_IRQn, 10);
+  // NVIC_EnableIRQ(CCU42_0_IRQn); 
+  // XMC_CCU4_EnableShadowTransfer(CCU42, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
+  // XMC_CCU4_SLICE_StartTimer(CCU42_CC43);
+
 
   delay(1000);
 }
@@ -175,123 +201,68 @@ void loop() {
         int input = 0;
         input = Serial.read();
 
-        // run back to default start angle
-        if(input == 48)
-        {
-            intent_angle = defaultAngle;
-        }
-
-        // Set intended angle with +/-
-        if(input == 55)
-        {
-            intent_angle+=10000;
-        }
-        if(input == 56)
-        {
-            intent_angle-=10000; 
-        }
-
-        // Set intended angle with +/-
-        if(input == 43)
-        {
-            intent_angle+=1;
-        }
-        if(input == 45)
-        {
-            intent_angle-=1; 
-        }
-
         // set motor P value with p/o
-        if(input == 112)
-        {
-            P+=1;
-        }
-        if(input == 111)
-        {
-            P-=1; 
-        }
+        if(input == 'p') { P_S += 1; }
+        if(input == 'o') { P_S -= 1; }
 
-        // set motor D value with f/d
-        if(input == 102)
-        {
-            D+=1;
-        }
-        if(input == 100)
-        {
-            D-=1;
-        }
+        // set motor I value with k/l
+        if(input == 'l') { I_S += 0.1; }
+        if(input == 'k') { I_S -= 0.1; }
+
+        // set motor D value with n/m
+        if(input == 'm') { D_S += 0.1; }
+        if(input == 'n') { D_S -= 0.1; }
+
+        // set motor P value with w/e
+        if(input == 'e') { P_P += 1; }
+        if(input == 'w') { P_P -= 1; }
 
         // set motor I value with i/u
-        if(input == 105)
-        {
-            I+=0.01;
-        }
-        if(input == 117)
-        {
-            I-=0.01;
-        }
+        if(input == 'd') { I_P += 0.1; }
+        if(input == 's') { I_P -= 0.1; }
 
-        // set motor offset
-        if(input == 115)
-        {
-            offset+=1;
-        }
-        if(input == 97)
-        {
-            offset-=1;
-        }
+        // set motor D value with f/d
+        if(input == 'c') { D_P += 0.1; }
+        if(input == 'x') { D_P -= 0.1; }
 
-        // set motor offset
-        if(input == 119)
-        {
-            PhaseShift+=1;
-        }
-        if(input == 113)
-        {
-            PhaseShift-=1;
-        }
+        // set motor D value with f/d
+        if(input == '2') { intent_pos += 1; }
+        if(input == '3') { intent_pos -= 1; }
 
-        // set actual intent angle as lower border angle
-        if(input == 52)
-        {
-            lowerBorderAngle = intent_angle;
-        }
-        // set actual intent angle as default start angle
-        if(input == 53)
-        {
-            defaultAngle = intent_angle;
-        }
-        // set actual intent angle as upper border angle
-        if(input == 54)
-        {
-            upperBorderAngle = intent_angle;
-        }
+        if(input == '6') { intent_pos += 10; }
+        if(input == '4') { intent_pos -= 10; }
+
+        if(input == '9') { intent_pos += 1000; }
+        if(input == '7') { intent_pos -= 1000; }
+
+        if(input == '0') { intent_pos = 0; }
 
         // w = writes the PID, border angles and default starting angle
-        if (input == 101)
-        {
-            writePID(filename_pid);
-        }
+        if (input == 'g') { writePID(filename_pid); }
 
 
     }
 }
 
 
-void printDebug(double angle, double angle360,double error,double speed,double control,int16_t revolutions,int16_t duty)
+void printDebug(double angle, double angle360,int16_t revolutions,int16_t duty,int16_t angle_table)
 {
-  Serial.print("\tP: "); Serial.print(P); 
-  Serial.print("\tI: "); Serial.print(I);
-  Serial.print("\tD: "); Serial.print(D);
-  Serial.print("\te: "); Serial.print(error*P);
-  Serial.print("\ti: "); Serial.print(integrator * I);
-  Serial.print("\ts: "); Serial.print(speed * D);
-  Serial.print("\t\tc: "); Serial.print(control);
-  Serial.print("\td: "); Serial.print(duty);
-  Serial.print("\ta: "); Serial.print(angle360);
-  Serial.print("\tr: "); Serial.print(revolutions);
-  Serial.print("\t");    Serial.print(angle);
-  Serial.print("\t");    Serial.println(intent_angle);
+  Serial.print("   P_P:"); Serial.print(P_P); 
+  Serial.print("   I_P:"); Serial.print(I_P);
+  Serial.print("   D_P:"); Serial.print(D_P);
+  Serial.print("   P_S:"); Serial.print(P_S); 
+  Serial.print("   I_S:"); Serial.print(I_S);
+  Serial.print("   D_S:"); Serial.print(D_S);
+  
+  Serial.print("\td:"); Serial.print(duty);
+  Serial.print("\ta:"); Serial.print(angle360);
+  Serial.print("\tr:"); Serial.print(revolutions);
+  Serial.print("\t");   Serial.print(angle);
+  Serial.print("\t");   Serial.print(intent_pos);
+  Serial.print("\t");   Serial.print(angle_table);
+
+  Serial.println("");
+  //Serial.print("\t");    Serial.println(intent_angle);
   debug = 0;
 }
 
@@ -347,24 +318,12 @@ void readCalibration(const char* filename)
     txtFile = SD.open(filename);
     if (txtFile) {
       digitalWrite(LED_BUILTIN, HIGH);
-      P                = txtFile.parseFloat();
-      I                = txtFile.parseFloat();
-      D                = txtFile.parseFloat();
-      upperBorderAngle = txtFile.parseFloat();
-      lowerBorderAngle = txtFile.parseFloat();
-      defaultAngle     = txtFile.parseFloat();
-      offset           = txtFile.parseInt();
-      PhaseShift       = txtFile.parseInt();
+      offset     = txtFile.parseInt();
+      PhaseShift = txtFile.parseInt();
       txtFile.close();
       digitalWrite(LED_BUILTIN, LOW);
-      Serial.print("P read: "); Serial.println(P);
-      Serial.print("I read: "); Serial.println(I);
-      Serial.print("D read: "); Serial.println(D);
-      Serial.print("upperBorderAngle read: "); Serial.println(upperBorderAngle);
-      Serial.print("lowerBorderAngle read: "); Serial.println(lowerBorderAngle);
-      Serial.print("defaultAngle read: ");     Serial.println(defaultAngle);
-      Serial.print("offset read: ");           Serial.println(offset);
-      Serial.print("PhaseShift read: ");       Serial.println(PhaseShift);
+      Serial.print("offset read: ");     Serial.println(offset);
+      Serial.print("PhaseShift read: "); Serial.println(PhaseShift);
     }else{
       Serial.print("error opening ");
       Serial.println(filename);
@@ -391,22 +350,22 @@ void writePID(const char* filename)
     txtFile = SD.open(filename, FILE_WRITE);
     if (txtFile) {
       digitalWrite(LED_BUILTIN, HIGH);
-      txtFile.println(P);
-      txtFile.println(I);
-      txtFile.println(D);
-      txtFile.println(lowerBorderAngle);
-      txtFile.println(upperBorderAngle);
-      txtFile.println(defaultAngle);
+      txtFile.println(P_S);
+      txtFile.println(I_S);
+      txtFile.println(D_S);
+      txtFile.println(P_P);
+      txtFile.println(I_P);
+      txtFile.println(D_P);
       txtFile.println(offset);
       txtFile.println(PhaseShift);
       digitalWrite(LED_BUILTIN, LOW);
       txtFile.close();
-      Serial.print("P: ");Serial.println(P);
-      Serial.print("I: ");Serial.println(I);
-      Serial.print("D: ");Serial.println(D);
-      Serial.print("lower border angle: ");Serial.println(lowerBorderAngle);
-      Serial.print("upper border angle: ");Serial.println(upperBorderAngle);
-      Serial.print("default start angle:");Serial.println(defaultAngle);
+      Serial.print("P_S: ");Serial.println(P_S);
+      Serial.print("I_S: ");Serial.println(I_S);
+      Serial.print("D_S: ");Serial.println(D_S);
+      Serial.print("P_P: ");Serial.println(P_P);
+      Serial.print("I_P: ");Serial.println(I_P);
+      Serial.print("D_P: ");Serial.println(D_P);
     }else{
       Serial.print("error opening ");
       Serial.println(filename);

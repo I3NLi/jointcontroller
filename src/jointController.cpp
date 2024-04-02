@@ -16,25 +16,47 @@
  * set all internal variables and structures to default.
  *
  */
-jointController::jointController(char *name)
+jointController::jointController(char *name,boolean debugPrint)
 {
-    this->sensor        = NULL;
-    jointName           = *name;
+    this->sensor                = NULL;
+    jointName                   = *name;
 
-    mGearFactor         = 1.0;
-    mPWMResolution      = 2048;
+    mPWMResolution              = 2048;
+    mSpeed                      = 1.0;
+    mIntegrator                 = 0.0;
+    mIntegratorPos              = 0.0;
+    mIntegratorSpeed            = 0.0;
+    
+    lastAngle                   = 0.0;
+    lastPos                     = 0.0;
+    newPos                      = 0.0;
 
-    mPid.P              = 0.0;
-    mPid.I              = 0.0;
-    mPid.D              = 0.0;
+    mPid.P                      = 0.0;
+    mPid.I                      = 0.0;
+    mPid.D                      = 0.0;
 
-    mLimits.minLimit    = 0.0;
-    mLimits.maxLimit    = 0.0;
-    mLimits.startPos    = 0.0;
+    mPid.P_pos                  = 0.0;
+    mPid.I_pos                  = 0.0;
+    mPid.D_pos                  = 0.0;
 
-    mMotor.offset       = 0;
-    mMotor.phaseShift   = 0;
+    mPid.P_speed                = 0.0;
+    mPid.I_speed                = 0.0;
+    mPid.D_speed                = 0.0;
 
+    mLimits.minLimit            = 0.0;
+    mLimits.maxLimit            = 0.0;
+    mLimits.startPos            = 0.0;
+
+    mMotor.offset               = 0;
+    mMotor.phaseShift           = 0;
+
+    mAnglePos.gearFactor        = 1.0;
+    mAnglePos.targetAngle       = 0.0;
+    mAnglePos.jointTargetAngle  = 0.0;
+    mAnglePos.jointActualAngle  = 0.0;
+    mAnglePos.jointActualPos    = 0.0;
+
+    debug                       = debugPrint;
 }
 
 /**
@@ -51,7 +73,7 @@ jointController::~jointController()
  */
 void jointController::begin()
 {
-    String cal_file = String(jointName) + String(".txt");
+    String cal_file = String("CAL") + String(jointName) + String(".txt");
     String pwm_file = String("PWM") + String(jointName) + String(".txt");
 
     _readPWMArray(pwm_file);
@@ -74,6 +96,12 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
 {
     this->sensor = new Tle5012Ino(&bus, csPin, misoPin, mosiPin, sckPin, slave);
     sensorError = sensor->begin();
+    if (debug)
+    {
+        Serial.print(jointName);
+        Serial.print(" sensor init: ");
+        Serial.println(sensorError);
+    }
     return sensorError;
 }
 
@@ -116,8 +144,34 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
     digitalWrite(pin_EN_W, HIGH);
 
     shieldError = NO_ERROR;
+    if (debug)
+    {
+        Serial.print(jointName);
+        Serial.print(" PWM Pin: ");
+        Serial.print(pin_U); Serial.print(":");
+        Serial.print(pin_V); Serial.print(":");
+        Serial.print(pin_W);
+        Serial.print(" EN Pin: ");
+        Serial.print(pin_EN_U); Serial.print(":");
+        Serial.print(pin_EN_V); Serial.print(":");
+        Serial.println(pin_EN_W);
+    }
     return shieldError;
  }
+
+/**
+ * @brief Switches the shield enable pin HIGH or LOW
+ * and therefore the BLDC on or off.
+ * 
+ * @param status 
+ */
+void jointController::switchShieldOnOff(int8_t status)
+{
+    digitalWrite(pin_EN_U, status);
+    digitalWrite(pin_EN_V, status);
+    digitalWrite(pin_EN_W, status);
+}
+
 
 /**
  * @brief Set the Gear Factor object
@@ -127,7 +181,7 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
  */
 void jointController::setGearFactor(double gearFactor)
 {
-    mGearFactor = gearFactor;
+    mAnglePos.gearFactor = gearFactor;
 }
 
 /**
@@ -173,7 +227,8 @@ double jointController::angleInsideRangeLimits(double rawAngle)
 }
 
 /**
- * @brief Set the PID values into the internal PID structure
+ * @brief Set the PID values for a normal one stage PID 
+ * motor controller
  *
  * @param P     the PID error value
  * @param I     the PID integrator value
@@ -184,6 +239,38 @@ void jointController::setPID(double P, double I, double D)
     mPid.P = P;
     mPid.I = I;
     mPid.D = D;
+    return;
+}
+
+/**
+ * @brief Set the PID values for a position motor controller. This 
+ * needs also the speed part
+ *
+ * @param P_pos     the PID position error value
+ * @param I_pos     the PID position integrator value
+ * @param D_pos     the PID position damping value
+ */
+void jointController::setPIDpos(double P_pos, double I_pos, double D_pos)
+{
+    mPid.P_pos = P_pos;
+    mPid.I_pos = I_pos;
+    mPid.D_pos = D_pos;
+    return;
+}
+
+/**
+ * @brief Set the PID values for the speed part of a position/speed PID motor
+ * controller
+ *
+ * @param P_speed     the PID speed error value
+ * @param I_speed     the PID speed integrator value
+ * @param D_speed     the PID speed damping value
+ */
+void jointController::setPIDspeed(double P_speed, double I_speed, double D_speed)
+{
+    mPid.P_speed = P_speed;
+    mPid.I_speed = I_speed;
+    mPid.D_speed = D_speed;
     return;
 }
 
@@ -213,7 +300,7 @@ double jointController::setHomingPosition(double startPos)
     errorTypes cA = sensor->resetFirmware();
     delay(50); //wait until Firmware reset comes back safely
     mLimits.startPos = startPos;
-    mMotor.sensorOffset = calculateAngle() * -1;
+    mMotor.sensorOffset = calculateAngle();
     return mMotor.sensorOffset;
 }
 
@@ -267,8 +354,11 @@ void jointController::_readPWMArray(String filename)
                 idx++;
             }
             txtFile.close();
-            Serial.print("PWM read finished from: ");
-            Serial.println(filename);
+            if(debug)
+            {
+                Serial.print("PWM read finished from: ");
+                Serial.println(filename);
+            }
             digitalWrite(LED1, LOW);
         }else{
             Serial.print("error opening ");
@@ -294,10 +384,27 @@ void jointController:: _readMotorCalibration(String filename)
         if (txtFile) {
             digitalWrite(LED1, HIGH);
             setMotorCal(txtFile.parseInt(),txtFile.parseInt());
+            setPIDpos(txtFile.parseInt(),txtFile.parseFloat(),txtFile.parseFloat());
+            setPIDspeed(txtFile.parseFloat(),txtFile.parseFloat(),txtFile.parseFloat());
             setPID(txtFile.parseInt(),txtFile.parseFloat(),txtFile.parseFloat());
             txtFile.close();
-            Serial.print("PID read finished from : ");
-            Serial.println(filename);
+            if(debug)
+            {
+                Serial.print("PID read finished from : ");
+                Serial.print(filename);
+                Serial.print("; offset=");Serial.print(mMotor.offset);
+                Serial.print("; phaseShift=");Serial.print(mMotor.phaseShift);
+                Serial.print("; P=");Serial.print(mPid.P);
+                Serial.print("; I=");Serial.print(mPid.I);
+                Serial.print("; D=");Serial.print(mPid.D);
+                Serial.print("; P_pos=");Serial.print(mPid.P_pos);
+                Serial.print("; I_pos=");Serial.print(mPid.I_pos);
+                Serial.print("; D_pos=");Serial.print(mPid.D_pos);
+                Serial.print("; P_speed=");Serial.print(mPid.P_speed);
+                Serial.print("; I_speed=");Serial.print(mPid.I_speed);
+                Serial.print("; D_speed=");Serial.print(mPid.D_speed);
+                Serial.println();
+            }
             digitalWrite(LED1, LOW);
         }else{
             Serial.print("error opening ");
@@ -307,13 +414,58 @@ void jointController:: _readMotorCalibration(String filename)
     return;
 }
 
+
+/**
+ * @brief 
+ * 
+ */
+void jointController::motorRunTest()
+{
+    double angle_raw;
+    int16_t duty = 820;
+    sensor->getAngleValue(angle_raw);
+    double angle = angle_raw >=0     //! this will synchronize real ange to intended angle
+        ? angle_raw
+        : 360 + angle_raw;
+
+    int angleTable = angle * resolution + mMotor.phaseShift + mMotor.offset;
+    if (angleTable >= arraySize ) { angleTable -= arraySize; }
+    if (angleTable < 0)           { angleTable += arraySize; }
+
+
+    analogWrite(pin_U, 2048 + duty * PWM_U_values[angleTable] / 2048 );                  //! set the PWM values to the U/V/W pins
+    analogWrite(pin_V, 2048 + duty * PWM_V_values[angleTable] / 2048 );
+    analogWrite(pin_W, 2048 + duty * PWM_W_values[angleTable] / 2048 );
+
+    if (debug) {
+        Serial.print(jointName);
+        Serial.print("  a: ");Serial.print(angle);
+    }
+
+}
+
+
+/**
+ * @brief Set the target angle for this joint inside the
+ * given min/max angles as we jet not have hard boundaries.
+ * The internal target angle is calculated with the gear factor and
+ * the sensor offset.
+ * 
+ * @param target_angle the angle we want to reach
+ */
+void jointController::moveTo(double target_angle)
+{
+    mAnglePos.targetAngle = constrain( target_angle, mLimits.minLimit, mLimits.maxLimit);
+    mAnglePos.jointTargetAngle = target_angle * mAnglePos.gearFactor;
+}
+
+
 /**
  * @brief the run controller moves the motor to the intent position, using the PWM array and calibration for the
  * motor and the PID controller to
  *
- * @param target_angle the angle we want to reach
  */
-void jointController::runToAngle(double target_angle)
+void jointController::runToAnglePID()
 {
     double raw_angle = 0.0;                                                                 //! raw angle value from -180 deg to 180 deg
     int16_t revolutions = 0;                                                                //! number of revolutions counted as +/- 360 deg
@@ -322,16 +474,15 @@ void jointController::runToAngle(double target_angle)
     // angle calculation
     sensor->getAngleValue(raw_angle);                                                       //! fetch raw angle from sensor
     sensor->getNumRevolutions(revolutions);                                                 //! fetch number of revolutions from sensor
-    double angle360 = raw_angle >= 0                                                        //! this will synchronize real ange to intended angle
+     mAnglePos.jointActualPos = raw_angle >= 0                                                        //! this will synchronize real ange to intended angle
           ? raw_angle
           : 360 + raw_angle;
-    double angle = revolutions * 360 + angle360;
-    intentAngle = mGearFactor * target_angle + mMotor.sensorOffset;                         //! calculate target with gear factor and sensorOffset
+    mAnglePos.jointActualAngle = revolutions * 360 +  mAnglePos.jointActualPos;
  
     // PID calculation
-    double error = intentAngle - angle;                                                     //! calculate position error
-    double speed = lastAngle - angle;                                                       //! calculate speed damping
-    lastAngle = angle;                                                                      //! update "last angle"
+    double error = mAnglePos.jointTargetAngle - mAnglePos.jointActualAngle;                 //! calculate position error
+    double speed = lastAngle - mAnglePos.jointActualAngle;                                  //! calculate speed damping
+    lastAngle = mAnglePos.jointActualAngle;                                                 //! save actual reach full angle in lastAngle
     mIntegrator = constrain( mIntegrator + error, -100, 100);                               //! integral factor
     double control = error * mPid.P + mIntegrator * mPid.I + speed * mPid.D;                //! calculate PID controller
  
@@ -340,7 +491,7 @@ void jointController::runToAngle(double target_angle)
     int16_t duty = constrain(abs(control),0,mPWMResolution);                                //! Limit output to meaningful range
  
     // PWM table fetch
-    int16_t angleTable = angle360 * resolution + phaseShift + mMotor.offset;                //! find the PWM array position
+    int16_t angleTable =  mAnglePos.jointActualPos * resolution + phaseShift + mMotor.offset;                //! find the PWM array position
     if (angleTable >= arraySize) {angleTable -= 3600;}                                      //! round trip in the  PWM array
     if (angleTable < 0000) {angleTable += 3600;}
  
@@ -349,16 +500,108 @@ void jointController::runToAngle(double target_angle)
     analogWrite(pin_V, mPWMResolution + duty * PWM_V_values[angleTable] / mPWMResolution );
     analogWrite(pin_W, mPWMResolution + duty * PWM_W_values[angleTable] / mPWMResolution );
 
-    // debug++;
-    // if (debug>100) {
-        //Serial.print(jointName);
-        // Serial.print("  a: ");Serial.print(angle);
-        // Serial.print("  i: ");Serial.print(intentAngle);
-        // Serial.print("  t: ");Serial.print(target_angle);
-        //Serial.println("");
-    //     debug = 0;
-    // }
+    if (debug) {
+        Serial.print(jointName);
+        Serial.print("  a: ");Serial.print(mAnglePos.jointActualAngle);
+        Serial.print("  t: ");Serial.print(mAnglePos.jointTargetAngle);
+        Serial.print("\t");
+    }
 }
+
+
+/**
+ * @brief Position part of the double speed/pos PID controller.
+ * This part should run slower than the speed part.
+ */
+void jointController::runToAnglePOS()
+{
+    double error_pos = 0.0;
+
+    if(abs(lastAngle - mAnglePos.jointActualAngle ) < 350.0)
+    {
+        error_pos = lastAngle - mAnglePos.jointActualAngle;                      //! calculate speed
+    }
+    lastAngle = mAnglePos.jointActualAngle;                                      //! save the last reach full angle 
+    if( newPos < mAnglePos.jointTargetAngle ){ newPos += 1 * mAnglePos.gearFactor; }
+    if( newPos > mAnglePos.jointTargetAngle ){ newPos -= 1 * mAnglePos.gearFactor; }
+
+    // PID pos calculation
+    error_pos = newPos - mAnglePos.jointActualAngle;
+    mIntegratorPos = constrain(mIntegratorPos + error_pos,-100, 100);
+    mSpeed = error_pos * mPid.P_pos + mIntegratorPos * mPid.I_pos + error_pos * mPid.D_pos; 
+
+    if (debug) {
+        Serial.print(jointName);
+        Serial.print("  POS   s: ");Serial.print(mSpeed);
+        Serial.print("  i: ");Serial.print(mIntegratorPos);
+        Serial.print("  e: ");Serial.print(error_pos);
+        Serial.print("  n: ");Serial.print(newPos);
+        Serial.print("  l: ");Serial.print(lastAngle);
+    }
+}
+
+/**
+ * @brief Speed part of the double speed/pos PID controller
+ * This part must run faster and more often than the pos part to reduce the
+ * speed near the target angle.
+ * this prevents the motor from stopping very hard.
+ * 
+ */
+void jointController::runToAngleSpeed()
+{
+    double raw_angle = 0.0;                                                                 //! raw angle value from -180 deg to 180 deg
+    int16_t revolutions = 0;                                                                //! number of revolutions counted as +/- 360 deg
+    int16_t phaseShift = mMotor.phaseShift;                                                 //! with positive phaseShift turn clockwise
+
+    double speed = 0.0;
+
+    // angle calculation
+    sensor->getAngleValue(raw_angle);                                                       //! fetch raw angle from sensor
+    sensor->getNumRevolutions(revolutions);                                                 //! fetch number of revolutions from sensor
+    mAnglePos.jointActualPos = raw_angle >= 0                                               //! this will synchronize real ange to intended angle
+          ? raw_angle
+          : 360 + raw_angle;
+    mAnglePos.jointActualAngle = revolutions * 360 + mAnglePos.jointActualPos - mMotor.sensorOffset;
+
+    //
+    if(abs( lastPos - mAnglePos.jointActualPos ) < 350.0)
+    {
+        speed = lastPos - mAnglePos.jointActualPos;                      //! calculate speed
+        speed = constrain (speed, -0.5, 0.5);
+    }
+    lastPos = mAnglePos.jointActualPos;
+
+    // PID speed calculation
+    double error_speed = mSpeed - speed;
+    mIntegratorSpeed = constrain(mIntegratorSpeed + error_speed,-100, 100);
+    double control_speed = error_speed * mPid.P_speed + mIntegratorSpeed * mPid.I_speed + speed * mPid.D_speed; 
+
+    // duty cycle calculation
+    if (control_speed < 0){phaseShift *= -1;}                                                     //! turn counterclockwise
+    int16_t duty = constrain(abs(control_speed),0,mPWMResolution);
+
+    // PWM table fetch
+    int16_t angleTable = mAnglePos.jointActualPos * resolution + phaseShift + mMotor.offset;                 //! find the PWM array position
+    if (angleTable >= arraySize) {angleTable -= 3600;}                                                       //! round trip in the  PWM array
+    if (angleTable < 0000) {angleTable += 3600;}
+ 
+    // motor setting
+    analogWrite(pin_U, mPWMResolution + duty * PWM_U_values[angleTable] / mPWMResolution );                  //! set the PWM values to the U/V/W pins
+    analogWrite(pin_V, mPWMResolution + duty * PWM_V_values[angleTable] / mPWMResolution );
+    analogWrite(pin_W, mPWMResolution + duty * PWM_W_values[angleTable] / mPWMResolution );
+
+    if (debug) {
+        Serial.print(jointName);
+        Serial.print("  a: ");Serial.print(mAnglePos.jointActualAngle);
+        Serial.print("  p: ");Serial.print(mAnglePos.jointActualPos);
+        Serial.print("  t: ");Serial.print(mAnglePos.jointTargetAngle);
+        Serial.print("  d: ");Serial.print(duty);
+        Serial.print("  s: ");Serial.print(speed);
+        Serial.print("  l: ");Serial.print(lastPos);
+        Serial.print("\t");
+    }
+}
+
 
 
 /**
@@ -366,8 +609,18 @@ void jointController::runToAngle(double target_angle)
  * 
  * TODO
  * 
- * - min/max detection
  * - X/Y/Z  A/CR/CL nameing
- * - secondary interrupt
  * 
  */
+// X:
+// P_P=78 I_P=10.27 D=-0.2 P_S=0.08 P_I=0.14 D_I=0
+// Y:
+// P_P=45 I_P=6.26 D=-0.48 P_S=0.03 P_I=0.06 D_I=0
+// Z:
+// P_P=43 I_P=4.94   D=-0.2 P_S=0.03 P_I=0.06 D_I=0
+// A:
+// P_P=35 I_P=3.97 D=-0.48 P_S=0.03 P_I=0.06 D_I=0
+// CR:
+// P_P=32 I_P=5.7  D=-0.32 P_S=0.03 P_I=0.06 D_I=0
+// CL:
+// P_P=30 I_P=5.8  D=-0.28 P_S=0.03 P_I=0.06 D_I=0

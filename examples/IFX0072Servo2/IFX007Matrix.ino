@@ -1,7 +1,6 @@
 
 #include <SD.h>
 #include <tlx5012-arduino.hpp>
-#include "const.h"
 
 
 using namespace tle5012;
@@ -15,47 +14,39 @@ String buffer;                                    //! string to buffer output
 // For the TLE5012
 
 // Pin selection for SPI1 on X1
-#define PIN_SPI1_SS0        35                         //! P0.5 X axes
-#define PIN_SPI1_SS1        64                         //! P0.2 Y axes
-#define PIN_SPI1_SS2        66                         //! P0.4 not used
-#define PIN_SPI1_SS3        36                         //! P0.3 not used
-#define PIN_SPI1_MOSI       37                         //! P0.1
-#define PIN_SPI1_MISO       63                         //! P0.0
-#define PIN_SPI1_SCK        38                         //! P0.10
-
+#define PIN_SPI1_SS0   36                         //! P0.3
+#define PIN_SPI1_SS1   64                         //! P0.2
+#define PIN_SPI1_SS2   66                         //! P0.4
+#define PIN_SPI1_SS3   35                         //! P0.5
+#define PIN_SPI1_MOSI  37                         //! P0.1
+#define PIN_SPI1_MISO  63                         //! P0.0
+#define PIN_SPI1_SCK   38                         //! P0.10
 // Pin selection for SPI2 on X2
-#define PIN_SPI2_SS0        94                         //! P0.12 Z axes
-#define PIN_SPI2_SS1        93                         //! P0.15 A axes
-#define PIN_SPI2_SS2        92                         //! (70,P0.14) changed here to P3.3 CR axes+++++++++++++++++++++++
-#define PIN_SPI2_SS3        91                         //! (71,P3.14) changed here to P0.8 CL axes
-#define PIN_SPI2_MOSI       69                         //! P3.11
-#define PIN_SPI2_MISO       95                         //! P3.12
-#define PIN_SPI2_SCK        68                         //! P3.13
+#define PIN_SPI2_SS0  94                          //! P0.12
+#define PIN_SPI2_SS1  93                          //! P0.15
+#define PIN_SPI2_SS2  71                          //! P3.14
+#define PIN_SPI2_SS3  70                          //! P0.14
+#define PIN_SPI2_MOSI 69                          //! P3.11
+#define PIN_SPI2_MISO 95                          //! P3.12
+#define PIN_SPI2_SCK  68                          //! P3.13
 
-// Shield on top test
-tle5012::SPIClass3W tle5012::SPI3W1(1);         //!< SPI port 1 on XMC4700 X1 according HW SPI setup
-tle5012::SPIClass3W tle5012::SPI3W2(2);
-// Tle5012Ino Tle5012Sensor = Tle5012Ino(&SPI3W1, PIN_SPI1_SS1, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S1);
-Tle5012Ino Tle5012Sensor = Tle5012Ino(&SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
-// const int U    = PIN_PWM_U_SHIELD;
-// const int V    = PIN_PWM_V_SHIELD;
-// const int W    = PIN_PWM_W_SHIELD;
-// const int EN_U = PIN_PWM_EN_U_SHIELD;
-// const int EN_V = PIN_PWM_EN_V_SHIELD;
-// const int EN_W = PIN_PWM_EN_W_SHIELD;
-
-const int U = 51;
-const int V = 61;
-const int W = 62;
-const int EN_U = 74;
-const int EN_V = 74;
-const int EN_W = 74;
-
-
-
+// tle5012::SPIClass3W tle5012::SPI3W1(1);           //!< SPI port 1 on XMC4700 X1 according HW SPI setup
+// Tle5012Ino Tle5012SensorSPI2 = Tle5012Ino(&SPI3W1, PIN_SPI1_SS0, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S0);
+tle5012::SPIClass3W tle5012::SPI3W2(2);           //!< SPI port 2 on XMC4700 X2 according HW SPI setup <-- change here to SPI3W1 if on other port
+Tle5012Ino Tle5012SensorSPI2 = Tle5012Ino(&SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
 errorTypes checkError = NO_ERROR;
+
+
+// pin settings the IFX007 (we do not use any analog pin)
+const int U = 11;                                 //! this pin must have PWM available
+const int V = 10;                                 //! this pin must have PWM available
+const int W = 9;                                  //! this pin must have PWM available
+const int EN_U = 6;                               //! this pin is a GPIO
+const int EN_V = 5;                               //! this pin is a GPIO
+const int EN_W = 3;                               //! this pin is a GPIO
+
 int i = 0;
-int duty = 1000;                                   //! duty cycle 0-127
+int duty = 40;                                   //! duty cycle 0-127
 
 
 // motor settings
@@ -72,10 +63,10 @@ double amplitudeOne;
 double amplitudeTwo;
 double amplitudeThree;
 
-double angle = 0.0;                               //! corrected angle from sensor as 0-360 deg
-double angle_raw = 0.0;                           //! raw value from sensor as -180-180 deg
+double angle = 0.0;                               //! measured angle from the TLE5012
 float angle_rad = 0.0;                            //! angle in radians
 
+//int offset = 42;                                  //! (this is the offset value found my test motor)
 int offset = 0;                                   //! this value has to found <-- start here always with 0
 int PhaseShift = 0;                               //! this value can be variated
 
@@ -93,32 +84,31 @@ extern "C"
   void CCU40_0_IRQHandler(void)
   {
     // TIER1: run motor uncontrolled
-    if (millis() < 20000)
+    if (millis() < 10000)
     {
-      angle_rad += 0.0174532925;
+      angle_rad += 0.0175;
+      pwmOne   = 100 * sin(angle_rad);
+      pwmTwo   = 100 * sin(angle_rad + PHASE_DELAY_1);
+      pwmThree = 100 * sin(angle_rad + PHASE_DELAY_2);
+      analogWrite(U, 127 + duty * pwmOne / 100);
+      analogWrite(V, 127 + duty * pwmTwo / 100);
+      analogWrite(W, 127 + duty * pwmThree / 100);
 
-      pwmOne   = 2048 * sin(angle_rad);
-      pwmTwo   = 2048 * sin(angle_rad + PHASE_DELAY_1);
-      pwmThree = 2048 * sin(angle_rad + PHASE_DELAY_2);
-      analogWrite(U, 2048 + duty * pwmOne   / 2048);
-      analogWrite(V, 2048 + duty * pwmTwo   / 2048);
-      analogWrite(W, 2048 + duty * pwmThree / 2048);
+      Tle5012SensorSPI2.getAngleValue(angle);
 
-      Tle5012Sensor.getAngleValue(angle_raw);
-      double angle = angle_raw >=0     //! this will synchronize real ange to intended angle
-          ? angle_raw
-          : 360 + angle_raw;
 
-Serial.println(angle);
+      int angle_out = (angle + 180) * resolution; // 0-3600
+      int pwm_U_out = pwmOne;                     //-100-100
+      int pwm_V_out = pwmTwo;                     //-100-100
+      int pwm_W_out = pwmThree;                   //-100-100
 
-      int angle_out = angle * resolution;         // 0-3600
-      myPWM_U_values[angle_out] = pwmOne;
-      myPWM_V_values[angle_out] = pwmTwo;
-      myPWM_W_values[angle_out] = pwmThree;
+      myPWM_U_values[angle_out] = pwm_U_out;
+      myPWM_V_values[angle_out] = pwm_V_out;
+      myPWM_W_values[angle_out] = pwm_W_out;
     }
 
     // TIER2: print out PWM_U/V/W
-    if (millis() > 20005 && n < arraySize)
+    if (millis() > 10000 && n < arraySize)
     {
       Serial.print(n); Serial.print(", ");
       Serial.print(myPWM_U_values[n]); Serial.print(", ");
@@ -129,14 +119,10 @@ Serial.println(angle);
     }
 
     // TIER3: run motor controlled
-    if (millis() > 25000)
+    if (millis() > 15000)
     {
-      Tle5012Sensor.getAngleValue(angle_raw);
-      double angle = angle_raw >=0     //! this will synchronize real ange to intended angle
-          ? angle_raw
-          : 360 + angle_raw;
-
-      int angle_table = angle * resolution + PhaseShift + offset;
+      Tle5012SensorSPI2.getAngleValue(angle);
+      int angle_table = (angle + 180) * resolution + PhaseShift + offset;
       if (angle_table >= arraySize )
       {
         angle_table -= arraySize;
@@ -146,9 +132,13 @@ Serial.println(angle);
         angle_table += arraySize;
       }
 
-      analogWrite(U, 2048 + duty * myPWM_U_values[angle_table] / 2048 );
-      analogWrite(V, 2048 + duty * myPWM_V_values[angle_table] / 2048 );
-      analogWrite(W, 2048 + duty * myPWM_W_values[angle_table] / 2048 );
+      pwmOne   = myPWM_U_values[angle_table];
+      pwmTwo   = myPWM_V_values[angle_table];
+      pwmThree = myPWM_W_values[angle_table];
+
+      analogWrite(U, 127 + duty * pwmOne   / 100);
+      analogWrite(V, 127 + duty * pwmTwo   / 100);
+      analogWrite(W, 127 + duty * pwmThree / 100);
     }
   }
 }
@@ -158,7 +148,7 @@ void setup()
   Serial.begin(115200);
   while (!Serial){};
   // Init SPI channel for TLE5012
-  checkError = Tle5012Sensor.begin();
+  checkError = Tle5012SensorSPI2.begin();
 
   // reserve 1kB for String used as a buffer
   buffer.reserve(2048);
@@ -166,16 +156,12 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
 
   // Init GPIO for IFX007, 20kHz does not produce any hearable sound
-  analogWriteResolution(12);
   pinMode(U, OUTPUT); setAnalogWriteFrequency(U, 20000);
   pinMode(V, OUTPUT); setAnalogWriteFrequency(V, 20000);
   pinMode(W, OUTPUT); setAnalogWriteFrequency(W, 20000);
   pinMode(EN_U, OUTPUT); digitalWrite(EN_U, HIGH);
   pinMode(EN_V, OUTPUT); digitalWrite(EN_V, HIGH);
   pinMode(EN_W, OUTPUT); digitalWrite(EN_W, HIGH);
-
-
-  delay (5000);
 
   // Setup Interrupt settings
   XMC_CCU4_SLICE_COMPARE_CONFIG_t pwm_config = {0};
@@ -197,13 +183,11 @@ void setup()
   NVIC_EnableIRQ(CCU40_0_IRQn);
   XMC_CCU4_EnableShadowTransfer(CCU40, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
   XMC_CCU4_SLICE_StartTimer(CCU40_CC43);
-
-
 }
 
 void loop()
 {
-    // put your main code here, to run repeatedly:
+  // put your main code here, to run repeatedly:
   while (Serial.available() != 0)
   {
     int input = 0;
@@ -230,18 +214,6 @@ void loop()
       PhaseShift = 0;
       Serial.print("Offset\t"); Serial.println(offset);
     }
-
-        // set motor D value with f/d
-        if(input == 102)
-        {
-            duty+=1;
-            Serial.print("duty\t"); Serial.println(duty);
-        }
-        if(input == 100)
-        {
-            duty-=1;
-            Serial.print("duty\t"); Serial.println(duty);
-        }
 
     // w = writes the PWM array and calibration values
     if (input == 119)

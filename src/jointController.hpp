@@ -16,7 +16,7 @@
 
 using namespace tle5012;
 
-#define PWMFrequency   20000                                //! 20kHz PHM frequency so that motor does not fiepe
+#define PWMFrequency   20000                                //! 20kHz PHM frequency so that motor does not fiep
 
 const int resolution = 10;                                  //!> array resolution 10 = 0.1 deg <-- change array size here
 const int arraySize  = 360 * resolution;                    //!> array size for 360 deg
@@ -65,6 +65,7 @@ class jointController
         void begin();
 
         errorTypes initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t misoPin, uint8_t mosiPin, uint8_t sckPin, Tle5012Ino::slaveNum slave);
+
         errorTypes initShield(uint8_t U,uint8_t V,uint8_t W,uint8_t EN_U,uint8_t EN_V,uint8_t EN_W);
 
         void setPID(double P, double I, double D);
@@ -94,7 +95,7 @@ class jointController
 
         File txtFile;                                   //! File object to represent file
         String buffer;                                  //! string to buffer output
-        boolean debug = false;                          //! debug printing
+        boolean isLogging = false;                      //! debug printing
 
         errorTypes sensorError = NO_ERROR;              //!> error type for sensors
         errorTypes shieldError = NO_ERROR;              //!> error type for shields

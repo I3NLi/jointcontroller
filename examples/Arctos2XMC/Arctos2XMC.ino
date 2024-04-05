@@ -28,6 +28,7 @@ boolean isCalibrate   = false;                  //!< Is the robot homing positio
 boolean isRun         = false;                  //!< Is the robot running?
 boolean isPosSpeed    = true;                   //!< if set true we use postion/speed PID with two ISR routines, otherwise we use only a single ISR with normal PID
 boolean isLogging     = true;                  //!< if true than logging is switched on
+boolean isIdle        ? false;
 
 uint8_t line_flags    = 0;
 uint8_t char_counter  = 0;
@@ -102,6 +103,8 @@ extern "C"
         }
         digitalWrite(LED1, LOW);
 
+        checkStatus()
+
         while (Serial.available() != 0)
         {
             uint8_t c = Serial.read();
@@ -131,10 +134,11 @@ extern "C"
                 }else{
                     Serial.println((char*)line);
                     simpleGCodeParser(line);
-                    for (int8_t i=0; i<jointTotalNum; i++){
-                        Serial.println(intent_angle[i]);
-                        while(link[i].checkStatus()!=NONE){};
-                        link[i].moveTo(intent_angle[i]);
+
+                    if (isIdle){
+                        for (int8_t i=0; i<jointTotalNum; i++){
+                            link[i].moveTo(intent_angle[i]);
+                        }
                     }
                 }
 
@@ -806,31 +810,31 @@ void simpleSystemParser(char *line)
                     } else if (line[3] == 0) {
                        switch (line[2]) {
                             case '1': 
-                                runProgram("prog1.gcode");
+                                runProgram("PROG1.GC");
                                 break;
                             case '2': 
-                                runProgram("prog2.gcode");
+                                runProgram("PROG2.GC");
                                 break;
                             case '3': 
-                                runProgram("prog3.gcode");
+                                runProgram("PROG3.GC");
                                 break;
                             case '4': 
-                                runProgram("prog4.gcode");
+                                runProgram("PROG4.GC");
                                 break;
                             case '5': 
-                                runProgram("prog5.gcode");
+                                runProgram("PROG5.GC");
                                 break;
                             case '6': 
-                                runProgram("prog6.gcode");
+                                runProgram("PROG6.GC");
                                 break;
                             case '7': 
-                                runProgram("prog7.gcode");
+                                runProgram("PROG7.GC");
                                 break;
                             case '8': 
-                                runProgram("prog8.gcode");
+                                runProgram("PROG8.GC");
                                 break;
                             case '9': 
-                                runProgram("prog9.gcode");
+                                runProgram("PROG9.GC");
                                 break;
                            }
                     }
@@ -860,7 +864,7 @@ void simpleSystemParser(char *line)
 /**
  * @brief Function read a new gcode program from SD card
  * and runs ot
- * 
+ * @Attention SD reader uses 8.3 file naming
  * @param filename 
  */
 void runProgram(String filename)
@@ -875,7 +879,7 @@ void runProgram(String filename)
         // try to open the file for writing
         File txtFile = SD.open(filename);
 
-        if (txtFile) {
+        //if (txtFile) {
             while (txtFile.available()) {
                 uint8_t p = txtFile.read();
                 if ((p == '\n') || (p == '\r'))  // End of line reached
@@ -884,7 +888,6 @@ void runProgram(String filename)
                     Serial.println((char*)prog);
                     simpleGCodeParser(prog);
                     for (int8_t i=0; i<jointTotalNum; i++){
-                        Serial.println(intent_angle[i]);
                         link[i].moveTo(intent_angle[i]);
                     }
                     // Reset tracking data for next line.
@@ -902,9 +905,19 @@ void runProgram(String filename)
 
             txtFile.close();
         
-        }else{
-            Serial.print("error opening ");
-            Serial.println(filename);
-        }
+        // }else{
+        //     Serial.print("error opening ");
+        //     Serial.println(filename);
+        // }
     }
+}
+
+eStatus checkStatus()
+{
+    isIdle = true;
+    for (int8_t i=0; i<jointTotalNum; i++){
+        if (link[i].checkStatus() != NONE)
+            isIdle = false;
+    }
+    return isIdle;
 }

@@ -152,7 +152,7 @@ void jointInit()
 
         isRun = true;
         delay(100);
-        digitalWrite(LED1, LOW);
+        digitalWrite(LED1, HIGH);
 
     }
 
@@ -183,7 +183,7 @@ void checkButton2(void)
         isCalibrate = true;
         delay(1000);
         digitalWrite(LED1, LOW);
-        digitalWrite(LED2, LOW);
+        digitalWrite(LED2, HIGH);
         Serial.println("All Homing positions set");
 
     }
@@ -216,15 +216,15 @@ void setup()
     Serial.println("All joints are ready");
     delay(2000);
 
-    // // Setup first timer
-    // if(isPosSpeed)
-    // {
-    //     timerSetupDouble(500,1000);
-    //     Serial.println("Timer double interrupt for postion and speed added");
-    // }else{
-    //     timerSetupSingle(200);
-    //     Serial.println("Timer single interrupt added");
-    // }
+    // Setup first timer
+    if(isPosSpeed)
+    {
+        timerSetupDouble(500,1000);
+        Serial.println("Timer double interrupt for postion and speed added");
+    }else{
+        timerSetupSingle(200);
+        Serial.println("Timer single interrupt added");
+    }
 
     // setup done
     delay(2000);
@@ -270,14 +270,12 @@ void loop()
             if (input == 43)
             {
                 testAngle += 10;
-            Serial.println(testAngle);
             }
 
             // - sign lowers the PhaseShift
             if (input == 45)
             {
                 testAngle -= 10;
-            Serial.println(testAngle);
             }
             link[0].moveTo(testAngle);
 
@@ -320,10 +318,9 @@ extern "C" {
 
         digitalWrite(LED2, HIGH);
         for (int8_t i=0; i<jointTotalNum; i++){
-            delay(100);
             link[i].runToAnglePOS();
         }
-        //digitalWrite(LED2, LOW);
+        digitalWrite(LED2, LOW);
     }
 
     /**
@@ -334,15 +331,15 @@ extern "C" {
     { 
         digitalWrite(LED1, HIGH);
         for (int8_t i=0; i<jointTotalNum; i++){
-            delay(100);
             if (isPosSpeed)
             {
-                link[i].runToAngleSpeed();
-            }else{
                 link[i].runToAnglePID();
+            }else{
+                link[i].runToAngleSpeed();
             }
         }
-        //digitalWrite(LED1, LOW);
+        //Serial.println("");
+        digitalWrite(LED1, LOW);
     }
 }
 

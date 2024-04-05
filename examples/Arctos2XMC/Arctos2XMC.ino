@@ -28,7 +28,7 @@ boolean isCalibrate   = false;                  //!< Is the robot homing positio
 boolean isRun         = false;                  //!< Is the robot running?
 boolean isPosSpeed    = true;                   //!< if set true we use postion/speed PID with two ISR routines, otherwise we use only a single ISR with normal PID
 boolean isLogging     = true;                  //!< if true than logging is switched on
-boolean isIdle        ? false;
+boolean isIdle        = false;
 
 uint8_t line_flags    = 0;
 uint8_t char_counter  = 0;
@@ -72,7 +72,7 @@ volatile double intent_angle[jointTotalNum] = {
 
 /**
  * @brief external C functions for fetching interrupt handler
- * 
+ *
  */
 extern "C"
 {
@@ -82,7 +82,7 @@ extern "C"
      * and will be called slowly
      */
     void CCU42_0_IRQHandler(void) //Position control
-    { 
+    {
 
         digitalWrite(LED2, HIGH);
         for (int8_t i=0; i<jointTotalNum; i++){
@@ -96,14 +96,14 @@ extern "C"
      * against the actual angle. This will be called fast.
      */
     void CCU40_0_IRQHandler(void) //Speed control
-    { 
+    {
         digitalWrite(LED1, HIGH);
         for (int8_t i=0; i<jointTotalNum; i++){
             link[i].runToAngleSpeed();
         }
         digitalWrite(LED1, LOW);
 
-        checkStatus()
+        isIdle = checkStatus();
 
         while (Serial.available() != 0)
         {
@@ -139,6 +139,8 @@ extern "C"
                         for (int8_t i=0; i<jointTotalNum; i++){
                             link[i].moveTo(intent_angle[i]);
                         }
+                    }else{
+                        Serial.println("joints are still running");
                     }
                 }
 
@@ -183,8 +185,8 @@ extern "C"
 
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 void timerSetupSingle(int16_t prescaler1)
 {
@@ -205,7 +207,7 @@ void timerSetupSingle(int16_t prescaler1)
     /* Set priority */
     NVIC_SetPriority(CCU40_0_IRQn, 5);
     /* Enable IRQ */
-    NVIC_EnableIRQ(CCU40_0_IRQn); 
+    NVIC_EnableIRQ(CCU40_0_IRQn);
     XMC_CCU4_EnableShadowTransfer(CCU40, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
     XMC_CCU4_SLICE_StartTimer(CCU40_CC43);
 }
@@ -213,7 +215,7 @@ void timerSetupSingle(int16_t prescaler1)
 
 /**
  * @brief Double timer setup if position and speed PID are used.
- * 
+ *
  */
 void timerSetupDouble(int16_t prescaler1, int16_t prescaler2)
 {
@@ -235,7 +237,7 @@ void timerSetupDouble(int16_t prescaler1, int16_t prescaler2)
     /* Set priority */
     NVIC_SetPriority(CCU40_0_IRQn, 10);
     /* Enable IRQ */
-    NVIC_EnableIRQ(CCU40_0_IRQn); 
+    NVIC_EnableIRQ(CCU40_0_IRQn);
     XMC_CCU4_EnableShadowTransfer(CCU40, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
     XMC_CCU4_SLICE_StartTimer(CCU40_CC43);
 
@@ -247,12 +249,12 @@ void timerSetupDouble(int16_t prescaler1, int16_t prescaler2)
     /* Enable compare match and period match events */
     XMC_CCU4_SLICE_EnableEvent(CCU42_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH);
     /* Connect period match event to SR0 */
-    XMC_CCU4_SLICE_SetInterruptNode(CCU42_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH, XMC_CCU4_SLICE_SR_ID_0); 
+    XMC_CCU4_SLICE_SetInterruptNode(CCU42_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH, XMC_CCU4_SLICE_SR_ID_0);
     /* Configure NVIC */
     /* Set priority */
     NVIC_SetPriority(CCU42_0_IRQn, 5);
     /* Enable IRQ */
-    NVIC_EnableIRQ(CCU42_0_IRQn); 
+    NVIC_EnableIRQ(CCU42_0_IRQn);
     XMC_CCU4_EnableShadowTransfer(CCU42, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
     XMC_CCU4_SLICE_StartTimer(CCU42_CC43);
 }
@@ -277,9 +279,9 @@ void blink(int8_t led, boolean state)
 
 
 /**
- * @brief Initialized all joints with sensor and shield, set basic values for the gear factor, 
+ * @brief Initialized all joints with sensor and shield, set basic values for the gear factor,
  * the range limits and startups the jointController
- * 
+ *
  */
 void jointInit()
 {
@@ -391,6 +393,7 @@ void checkButton2(void)
         isCalibrate = true;
         delay(1000);
         Serial.println("All Homing positions set");
+        Serial.println("\nARCTOS 2XMC ready for running\n");
 
     }
     digitalWrite(LED1, LOW);
@@ -417,7 +420,7 @@ void moveTo()
 
 /**
  * @brief Arduino setup function
- * 
+ *
  */
 void setup()
 {
@@ -456,8 +459,8 @@ void setup()
 
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 void loop()
 {
@@ -488,7 +491,7 @@ void loop()
 
 
 /**
- * @brief 
+ * @brief
  * Extracts a floating point value from a string. The following code is based loosely on
  * the avr-libc strtod() function by Michael Stumpf and Dmitry Xmelkov and many freely
  * available conversion method examples, but has been highly optimized for Grbl. For known
@@ -496,7 +499,7 @@ void loop()
  * Scientific notation is officially not supported by g-code, and the 'E' character may
  * be a g-code word on some CNC systems. So, 'E' notation will not be recognized.
  * NOTE: Thanks to Radu-Eosif Mihailescu for identifying the issues with using strtod().
- * 
+ *
  */
 uint8_t read_float(char *line, uint8_t *char_counter, float *float_ptr)
 {
@@ -578,8 +581,8 @@ uint8_t read_float(char *line, uint8_t *char_counter, float *float_ptr)
  * @brief Simple G-Code Parser parser gcode lines
  * only for G90 and A/B/C and X/Y/Z axes and M97 for
  * gripper.
- * 
- * @param line 
+ *
+ * @param line
  */
 void simpleGCodeParser(char *line)
 {
@@ -594,12 +597,12 @@ void simpleGCodeParser(char *line)
 
         // Import the next g-code word, expecting a letter followed by a value. Otherwise, error out.
         letter = line[char_counter];
-        if((letter < 'A') || (letter > 'Z')) { 
+        if((letter < 'A') || (letter > 'Z')) {
             Serial.print("Expected command letter");
             Serial.println(STATUS_EXPECTED_COMMAND_LETTER);
         }
         char_counter++;
-        if (!read_float(line, &char_counter, &value)) { 
+        if (!read_float(line, &char_counter, &value)) {
             Serial.print("Bad number format");
             Serial.println(STATUS_BAD_NUMBER_FORMAT);
         }
@@ -653,7 +656,7 @@ void simpleGCodeParser(char *line)
                     case 61:
                         Serial.println("G61 not implemented");
                         break;
-                default: 
+                default:
                     Serial.print("Unsupported command letter");
                     Serial.println(STATUS_GCODE_UNSUPPORTED_COMMAND);
                 }
@@ -677,7 +680,7 @@ void simpleGCodeParser(char *line)
                         //     servo.parseInuse[i]=0;
                         // }
                         break;
-                    default: 
+                    default:
                         Serial.print("Unsupported command letter");
                         Serial.println(STATUS_GCODE_UNSUPPORTED_COMMAND);
                 }
@@ -715,8 +718,8 @@ void simpleGCodeParser(char *line)
 
 /**
  * @brief Construct a new simple System Parser object
- * 
- * @param line 
+ *
+ * @param line
  */
 void simpleSystemParser(char *line)
 {
@@ -725,14 +728,14 @@ void simpleSystemParser(char *line)
     float parameter, value;
 
     switch( line[char_counter] ) {
-        case 0 : 
+        case 0 :
             Serial.println("grbl help report not implemented");
             break;
         case 'J' : // Jogging
             Serial.println("Jogging");
             break;
         case '$': case 'G': case 'C': case 'S': case 'X':
-            if ( line[2] != 0 ) { 
+            if ( line[2] != 0 ) {
                 Serial.print("Invalid statement");
                 Serial.println(STATUS_INVALID_STATEMENT);
              }
@@ -774,7 +777,7 @@ void simpleSystemParser(char *line)
                         }
                     } else if (line[3] == 0) {
                        switch (line[2]) {
-                            case 'X': 
+                            case 'X':
                                 Serial.println("Homing joint X");
                                 link[0].homing();
                                 break;
@@ -809,31 +812,31 @@ void simpleSystemParser(char *line)
                         runProgram("default");
                     } else if (line[3] == 0) {
                        switch (line[2]) {
-                            case '1': 
+                            case '1':
                                 runProgram("PROG1.GC");
                                 break;
-                            case '2': 
+                            case '2':
                                 runProgram("PROG2.GC");
                                 break;
-                            case '3': 
+                            case '3':
                                 runProgram("PROG3.GC");
                                 break;
-                            case '4': 
+                            case '4':
                                 runProgram("PROG4.GC");
                                 break;
-                            case '5': 
+                            case '5':
                                 runProgram("PROG5.GC");
                                 break;
-                            case '6': 
+                            case '6':
                                 runProgram("PROG6.GC");
                                 break;
-                            case '7': 
+                            case '7':
                                 runProgram("PROG7.GC");
                                 break;
-                            case '8': 
+                            case '8':
                                 runProgram("PROG8.GC");
                                 break;
-                            case '9': 
+                            case '9':
                                 runProgram("PROG9.GC");
                                 break;
                            }
@@ -865,7 +868,7 @@ void simpleSystemParser(char *line)
  * @brief Function read a new gcode program from SD card
  * and runs ot
  * @Attention SD reader uses 8.3 file naming
- * @param filename 
+ * @param filename
  */
 void runProgram(String filename)
 {
@@ -879,13 +882,14 @@ void runProgram(String filename)
         // try to open the file for writing
         File txtFile = SD.open(filename);
 
-        //if (txtFile) {
+        if (txtFile) {
             while (txtFile.available()) {
                 uint8_t p = txtFile.read();
                 if ((p == '\n') || (p == '\r'))  // End of line reached
                 {
                     prog[prog_counter] = 0; // Set string termination character.
                     Serial.println((char*)prog);
+                    while(!isIdle){};
                     simpleGCodeParser(prog);
                     for (int8_t i=0; i<jointTotalNum; i++){
                         link[i].moveTo(intent_angle[i]);
@@ -904,20 +908,20 @@ void runProgram(String filename)
             }
 
             txtFile.close();
-        
-        // }else{
-        //     Serial.print("error opening ");
-        //     Serial.println(filename);
-        // }
+
+        }else{
+            Serial.print("error opening ");
+            Serial.println(filename);
+        }
     }
 }
 
-eStatus checkStatus()
+boolean checkStatus()
 {
-    isIdle = true;
+    boolean idle = true;
     for (int8_t i=0; i<jointTotalNum; i++){
         if (link[i].checkStatus() != NONE)
-            isIdle = false;
+            idle = false;
     }
-    return isIdle;
+    return idle;
 }

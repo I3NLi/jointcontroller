@@ -49,6 +49,8 @@ jointController::jointController(char *name,boolean debugPrint)
 
     mMotor.offset               = 0;
     mMotor.phaseShift           = 0;
+    mMotor.sensorOffset         = 0;
+    mMotor.epsilon              = 0;
 
     mAnglePos.gearFactor        = 1.0;
     mAnglePos.targetAngle       = 0.0;
@@ -96,6 +98,9 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
 {
     this->sensor = new Tle5012Ino(&bus, csPin, misoPin, mosiPin, sckPin, slave);
     sensorError = sensor->begin();
+
+    this->sensor->reg.enableSpikeFilter();
+
     if (isLogging)
     {
         Serial.print(jointName);
@@ -170,6 +175,7 @@ void jointController::switchShieldOnOff(int8_t status)
     digitalWrite(pin_EN_U, status);
     digitalWrite(pin_EN_V, status);
     digitalWrite(pin_EN_W, status);
+    status = NONE;
 }
 
 
@@ -183,6 +189,7 @@ void jointController::setGearFactor(double gearFactor)
 {
     mAnglePos.gearFactor = gearFactor;
 }
+
 
 /**
  * @brief Set the analog pin bit resolution
@@ -215,6 +222,7 @@ void jointController::setRangeLimits(double minLimit, double maxLimit, double st
     return;
 }
 
+
 /**
  * @brief Checks if the inserted angle is inside the range Limits aof the joint
  * 
@@ -225,6 +233,7 @@ double jointController::angleInsideRangeLimits(double rawAngle)
 {
     return(constrain(rawAngle,mLimits.minLimit,mLimits.maxLimit));
 }
+
 
 /**
  * @brief Set the PID values for a normal one stage PID 
@@ -241,6 +250,20 @@ void jointController::setPID(double P, double I, double D)
     mPid.D = D;
     return;
 }
+
+
+/**
+ * @brief Set the epsilon range where inside a position is good enough
+ * to be the target position. It will be recalculated to internal
+ * degree by multiply with the gear factor.
+ * 
+ * @param epsilonRange the range in external degree
+ */
+ void jointController::setEpsilon(double epsilonRange)
+ {
+    mMotor.epsilon = epsilonRange * mAnglePos.gearFactor;
+ }
+
 
 /**
  * @brief Set the PID values for a position motor controller. This 
@@ -448,6 +471,39 @@ void jointController::motorRunTest()
 
 
 /**
+ * @brief function checks the running status of the joint.
+ * If a target angle is inside the epsilon range, than joint can
+ * be released for new settings, otherwise it is in
+ * RUNNING or HOMING status.
+ * 
+ * @return eStatus 
+ */
+eStatus jointController::checkStatus()
+{
+    if ( mAnglePos.targetAngle - mMotor.epsilon >= mAnglePos.jointActualAngle &&
+         mAnglePos.targetAngle + mMotor.epsilon <= mAnglePos.jointActualAngle )
+    {
+        status = NONE;
+    } 
+    return status;
+}
+
+
+/**
+ * @brief Function starts the soft homing procedure.
+ * The will be moved back to its default start position.
+ * 
+ */
+eStatus jointController::homing()
+{
+    status = HOMING;
+    mAnglePos.targetAngle = mLimits.startPos;
+    mAnglePos.jointTargetAngle = mLimits.startPos * mAnglePos.gearFactor;
+    return status;
+}
+
+
+/**
  * @brief Set the target angle for this joint inside the
  * given min/max angles as we jet not have hard boundaries.
  * The internal target angle is calculated with the gear factor and
@@ -455,10 +511,14 @@ void jointController::motorRunTest()
  * 
  * @param target_angle the angle we want to reach
  */
-void jointController::moveTo(double target_angle)
+eStatus jointController::moveTo(double target_angle)
 {
-    mAnglePos.targetAngle = constrain( target_angle, mLimits.minLimit, mLimits.maxLimit);
-    mAnglePos.jointTargetAngle = target_angle * mAnglePos.gearFactor;
+    if (status != HOMING){
+        mAnglePos.targetAngle = constrain( target_angle, mLimits.minLimit, mLimits.maxLimit);
+        mAnglePos.jointTargetAngle = target_angle * mAnglePos.gearFactor;
+        status = RUNNING;
+    }
+    return status;
 }
 
 
@@ -532,16 +592,19 @@ void jointController::runToAnglePOS()
     mIntegratorPos = constrain(mIntegratorPos + error_pos,-100, 100);
     mSpeed = error_pos * mPid.P_pos + mIntegratorPos * mPid.I_pos + error_pos * mPid.D_pos; 
 
-    if (isLogging) {
-        Serial.print(jointName);
-        Serial.print(" P s: ");Serial.print(mSpeed);
-        // Serial.print("  i: ");Serial.print(mIntegratorPos);
-        // Serial.print("  e: ");Serial.print(error_pos);
-        // Serial.print("  n: ");Serial.print(newPos);
-        // Serial.print("  l: ");Serial.print(lastAngle);
-        Serial.print("\n");
-    }
+    // if (isLogging) {
+    //     Serial.print(" Pos: ");
+    //     Serial.print(jointName);
+    //     Serial.println(mSpeed);
+    //     // Serial.print(" Pos s: ");Serial.print(mSpeed);
+    //     // Serial.print("  i: ");Serial.print(mIntegratorPos);
+    //     // Serial.print("  e: ");Serial.print(error_pos);
+    //     // Serial.print("  n: ");Serial.print(newPos);
+    //     // Serial.print("  l: ");Serial.print(lastAngle);
+    //     // Serial.print("\n");
+    // }
 }
+
 
 /**
  * @brief Speed part of the double speed/pos PID controller
@@ -593,27 +656,25 @@ void jointController::runToAngleSpeed()
     analogWrite(pin_V, mPWMResolution + duty * PWM_V_values[angleTable] / mPWMResolution );
     analogWrite(pin_W, mPWMResolution + duty * PWM_W_values[angleTable] / mPWMResolution );
 
-    if (isLogging) {
-        Serial.print(jointName);
-        Serial.print(" S a: ");Serial.print(mAnglePos.jointActualAngle);
-        // Serial.print("  p: ");Serial.print(mAnglePos.jointActualPos);
-        // Serial.print("  t: ");Serial.print(mAnglePos.jointTargetAngle);
-        // Serial.print("  d: ");Serial.print(duty);
-        // Serial.print("  s: ");Serial.print(speed);
-        // Serial.print("  l: ");Serial.print(lastPos);
-        Serial.print("\n");
-    }
+    // if (isLogging) {
+    //     Serial.print(" Speed ");
+    //     Serial.print(jointName);
+    //     Serial.println(mAnglePos.jointActualAngle);
+    //     // Serial.print("  p: ");Serial.print(mAnglePos.jointActualPos);
+    //     // Serial.print("  t: ");Serial.print(mAnglePos.jointTargetAngle);
+    //     // Serial.print("  d: ");Serial.print(duty);
+    //     // Serial.print("  s: ");Serial.print(speed);
+    //     // Serial.print("  l: ");Serial.print(lastPos);
+    //     // Serial.print("\n");
+    // }
 }
 
 
 
 /**
- * @brief 
- * 
  * TODO
  * 
- * - X/Y/Z  A/CR/CL nameing
- * 
+ * differential B/C joints
  */
 // X:
 // P_P=78 I_P=10.27 D=-0.2 P_S=0.08 P_I=0.14 D_I=0

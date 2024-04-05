@@ -148,8 +148,7 @@
  */
 
 #define LINE_BUFFER_SIZE 256
-
-
+#define MAX_INT_DIGITS   8
 
 // Define Grbl status codes. Valid values (0-255)
 #define STATUS_OK 0

@@ -21,9 +21,23 @@ using namespace tle5012;
 const int resolution = 10;                                  //!> array resolution 10 = 0.1 deg <-- change array size here
 const int arraySize  = 360 * resolution;                    //!> array size for 360 deg
 
+/*!
+* The status flag list
+* This flags are used to indicate the actual operation of the motor
+*/
+enum eStatus
+{
+    NONE=0,                                         //!> NONE motor has no flag
+    RUNNING,                                        //!> RUNNING motor is running without any other status
+    HOMING,                                         //!> Running to home position
+    LIMIT                                           //!> LIMIT motor has reached its soft limit
+}; 
+
+
 class jointController
 {
     public:
+
         char jointName;                                     //! name of the joint
         Tle5012Ino *sensor;                                 //!> pointer to the tlX501 sensor
         typedef struct pidParm {
@@ -48,6 +62,7 @@ class jointController
             int16_t offset;                                 //!> motor offset value for the electrical field
             int16_t phaseShift;                             //!> motor phase shift value for the electrical field 
             double sensorOffset;                            //!> sensor offset for the mechanical 0 deg
+            double epsilon;                                 //!> epsilon range around a target position which is still ok
         } motorSetup_t;
 
         typedef struct anglePos {
@@ -65,12 +80,12 @@ class jointController
         void begin();
 
         errorTypes initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t misoPin, uint8_t mosiPin, uint8_t sckPin, Tle5012Ino::slaveNum slave);
-
         errorTypes initShield(uint8_t U,uint8_t V,uint8_t W,uint8_t EN_U,uint8_t EN_V,uint8_t EN_W);
 
         void setPID(double P, double I, double D);
         void setPIDpos(double P_pos, double I_pos, double D_pos);
         void setPIDspeed(double P_speed, double I_speed, double D_speed);
+        void setEpsilon(double epsilonRange);
         void setRangeLimits(double minLimit=0.0, double maxLimit=360.0, double startPos=0.0);
         void setPWMResolution(int16_t resolution=2048);
         void setMotorCal(int16_t off,int16_t phase);
@@ -82,19 +97,22 @@ class jointController
         double calculateAngle(double gf=1.0);
 
         void switchShieldOnOff(int8_t status);
-        void moveTo(double target_angle);
+
+        eStatus checkStatus();
+        eStatus homing();
+        eStatus moveTo(double target_angle);
+
         void runToAnglePID();
         void runToAnglePOS();
         void runToAngleSpeed();
-
         void motorRunTest();
 
-        motorSetup_t    mMotor;                         //!> motor setup values structure
+        eStatus status = NONE;
+
 
     private:
 
         File txtFile;                                   //! File object to represent file
-        String buffer;                                  //! string to buffer output
         boolean isLogging = false;                      //! debug printing
 
         errorTypes sensorError = NO_ERROR;              //!> error type for sensors
@@ -110,15 +128,16 @@ class jointController
         posLimits_t     mLimits;                        //!> limits structure
         pidParam_t      mPid;                           //!> PID values structure
         anglePos_t      mAnglePos;
+        motorSetup_t    mMotor;                         //!> motor setup values structure
 
         double          mPWMResolution;                 //!> bit resolution of the analog pins
-        double          mIntegrator;                    //!> this will sum all the errors for i part of pid controller
-        double          mIntegratorSpeed;               //!> speed Integrator for speed/pos PID
-        double          mIntegratorPos;                 //!> position Integrator for speed/pos PID
-        double          mSpeed;                         //!> the intent speed to reach
-        double          lastAngle;                      //!> last angle position with full revolution
-        double          lastPos;                        //!> last position in 0.360 deg
-        double          newPos;                         //!> new postion  for speed/pos PID
+        volatile double mIntegrator;                    //!> this will sum all the errors for i part of pid controller
+        volatile double mIntegratorSpeed;               //!> speed Integrator for speed/pos PID
+        volatile double mIntegratorPos;                 //!> position Integrator for speed/pos PID
+        volatile double mSpeed;                         //!> the intent speed to reach
+        volatile double lastAngle;                      //!> last angle position with full revolution
+        volatile double lastPos;                        //!> last position in 0.360 deg
+        volatile double newPos;                         //!> new postion  for speed/pos PID
 
         int16_t PWM_U_values[arraySize];                //!> PWM predefined values for U
         int16_t PWM_V_values[arraySize];                //!> PWM predefined values for V

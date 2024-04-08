@@ -113,8 +113,8 @@
 
 // minimal range limits
 #define minLimit_X         -200.0
-#define minLimit_Y         -125.0
-#define minLimit_Z         -50.0
+#define minLimit_Y         -50.0
+#define minLimit_Z         -100.0
 #define minLimit_A         -200.0
 #define minLimit_B         -100.0
 #define minLimit_C         -200.0
@@ -124,7 +124,7 @@
 // minimal range limits
 #define maxLimit_X         200.0
 #define maxLimit_Y         75.0
-#define maxLimit_Z         100.0
+#define maxLimit_Z         50.0
 #define maxLimit_A         200.0
 #define maxLimit_B         100.0
 #define maxLimit_C         200.0
@@ -140,3 +140,13 @@
 #define defaultPos_C       0.0
 #define defaultPos_CL      0.0
 #define defaultPos_CR      0.0
+
+// default home position
+#define epsilon_X          2.0
+#define epsilon_Y          1.0
+#define epsilon_Z          1.0
+#define epsilon_A          1.0
+#define epsilon_B          0.0
+#define epsilon_C          0.0
+#define epsilon_CL         0.0
+#define epsilon_CR         0.0

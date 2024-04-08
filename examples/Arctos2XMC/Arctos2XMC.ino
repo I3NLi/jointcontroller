@@ -24,15 +24,20 @@ tle5012::SPIClass3W tle5012::SPI3W2(2);         //!< SPI port 2 on XMC4700 X2 ac
 static char line[LINE_BUFFER_SIZE];             //!< Line to be executed. Zero-terminated.
 static char prog[LINE_BUFFER_SIZE];             //!< program to be executed. Zero-terminated.
 
-boolean isCalibrate   = false;                  //!< Is the robot homing position calibrated?
-boolean isRun         = false;                  //!< Is the robot running?
-boolean isPosSpeed    = true;                   //!< if set true we use postion/speed PID with two ISR routines, otherwise we use only a single ISR with normal PID
-boolean isLogging     = true;                  //!< if true than logging is switched on
-boolean isIdle        = false;
+boolean isCalibrate         = false;                  //!< Is the robot homing position calibrated?
+boolean isRun               = false;                  //!< Is the robot running?
+boolean isPosSpeed          = true;                   //!< if set true we use postion/speed PID with two ISR routines, otherwise we use only a single ISR with normal PID
+boolean isLogging           = true;                   //!< if true than logging is switched on
+boolean isIdle              = true;
+boolean isProg              = true;                   //!> do we have a loaded program
 
-uint8_t line_flags    = 0;
-uint8_t char_counter  = 0;
+double testAngle            = 0.0;
+uint8_t line_flags          = 0;
+uint8_t char_counter        = 0;
 uint8_t c;
+
+uint8_t numProgLines        = 0;
+uint8_t actualProgLine      = 0;
 
 /*!
  * Global controller array holds pointers for each joint. Each joint is a combination of
@@ -40,7 +45,8 @@ uint8_t c;
  * an is initialized with the init function of the jointController. The IF007T shields uses PWM and
  * GPIO pins which where set with the init function
  */
-#define jointTotalNum  6                                        //!> total number of controlled joints
+#define jointTotalNum   6                                        //!> total number of controlled joints
+#define triggerTotalNum 4
 jointController link[jointTotalNum] = {                         //!> joint controller array
     ( jointController( (char*)"X", isLogging ) ),
     ( jointController( (char*)"Y", isLogging ) ),
@@ -65,10 +71,49 @@ volatile double intent_angle[jointTotalNum] = {
 };
 
 
+int8_t linePointer = 0;
+double progStack[MAX_PROG_STACK][6] = {
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+    { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+};
+
+
 // ****************************************************************************
 // code functions which needs to be placed before setup and loop
 // ****************************************************************************
 
+/**
+ * @brief check the status of all joints and give back a common status
+ *
+ * @return boolean common status
+ */
+boolean checkAllJointsStatus()
+{
+    boolean idle = true;
+    for (int8_t i=0; i<triggerTotalNum; i++){
+        if (link[i].checkStatus() != NONE)
+            idle = false;
+    }
+    return idle;
+}
 
 /**
  * @brief external C functions for fetching interrupt handler
@@ -80,12 +125,13 @@ extern "C"
     /**
      * @brief Position PID controller calculates the speed of each joint
      * and will be called slowly
+     * 15000
      */
     void CCU42_0_IRQHandler(void) //Position control
     {
 
         digitalWrite(LED2, HIGH);
-        for (int8_t i=0; i<jointTotalNum; i++){
+        for (int8_t i=0; i<triggerTotalNum; i++){
             link[i].runToAnglePOS();
         }
         digitalWrite(LED2, LOW);
@@ -94,16 +140,17 @@ extern "C"
     /**
      * @brief Speed PID controller calculates the position and speed
      * against the actual angle. This will be called fast.
+     * 500
      */
     void CCU40_0_IRQHandler(void) //Speed control
     {
         digitalWrite(LED1, HIGH);
-        for (int8_t i=0; i<jointTotalNum; i++){
+        for (int8_t i=0; i<triggerTotalNum; i++){
             link[i].runToAngleSpeed();
         }
         digitalWrite(LED1, LOW);
 
-        isIdle = checkStatus();
+        isIdle = checkAllJointsStatus();
 
         while (Serial.available() != 0)
         {
@@ -135,13 +182,15 @@ extern "C"
                     Serial.println((char*)line);
                     simpleGCodeParser(line);
 
-                    if (isIdle){
+                    //if (isIdle){
                         for (int8_t i=0; i<jointTotalNum; i++){
-                            link[i].moveTo(intent_angle[i]);
+                            Serial.println(intent_angle[i]);
+                            //link[i].moveTo(intent_angle[i]);
                         }
-                    }else{
-                        Serial.println("joints are still running");
-                    }
+                        moveTo();
+                    //}else{
+                    //    Serial.println("joints are still running");
+                    //}
                 }
 
                 // Reset tracking data for next line.
@@ -182,36 +231,6 @@ extern "C"
         }
     }
 }
-
-
-/**
- * @brief
- *
- */
-void timerSetupSingle(int16_t prescaler1)
-{
-    //Setup Interrupt settings 1
-    XMC_CCU4_SLICE_COMPARE_CONFIG_t pwm_config = {0};
-    pwm_config.passive_level = XMC_CCU4_SLICE_OUTPUT_PASSIVE_LEVEL_HIGH;
-    pwm_config.prescaler_initval = XMC_CCU4_SLICE_PRESCALER_128;
-
-    XMC_CCU4_Init(CCU40, XMC_CCU4_SLICE_MCMS_ACTION_TRANSFER_PR_CR);
-    XMC_CCU4_SLICE_CompareInit(CCU40_CC43, &pwm_config);
-    XMC_CCU4_EnableClock(CCU40, 3);
-    XMC_CCU4_SLICE_SetTimerPeriodMatch(CCU40_CC43, prescaler1); // Adjust last Value or Prescaler
-    /* Enable compare match and period match events */
-    XMC_CCU4_SLICE_EnableEvent(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH);
-    /* Connect period match event to SR0 */
-    XMC_CCU4_SLICE_SetInterruptNode(CCU40_CC43, XMC_CCU4_SLICE_IRQ_ID_PERIOD_MATCH, XMC_CCU4_SLICE_SR_ID_0);
-    /* Configure NVIC */
-    /* Set priority */
-    NVIC_SetPriority(CCU40_0_IRQn, 5);
-    /* Enable IRQ */
-    NVIC_EnableIRQ(CCU40_0_IRQn);
-    XMC_CCU4_EnableShadowTransfer(CCU40, (CCU4_GCSS_S0SE_Msk << (4 * 3)));
-    XMC_CCU4_SLICE_StartTimer(CCU40_CC43);
-}
-
 
 /**
  * @brief Double timer setup if position and speed PID are used.
@@ -290,42 +309,49 @@ void jointInit()
     link[0].initShield(PIN_PWM_U1,PIN_PWM_V1,PIN_PWM_W1,PIN_PWM_EN1,PIN_PWM_EN1,PIN_PWM_EN1);
     link[0].setRangeLimits(minLimit_X,maxLimit_X,defaultPos_X);
     link[0].setGearFactor(gearFactor_X);
-    link[0].begin();
+    link[0].setEpsilon(epsilon_X);
+    link[0].begin(ENABLED);
 
     // link[1] = Y axis, SPI1, CS1,Slave1
     link[1].initSensor(SPI3W1, PIN_SPI1_SS1, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S1);
     link[1].initShield(PIN_PWM_U2,PIN_PWM_V2,PIN_PWM_W2,PIN_PWM_EN2,PIN_PWM_EN2,PIN_PWM_EN2);
     link[1].setRangeLimits(minLimit_Y,maxLimit_Y,defaultPos_Y);
     link[1].setGearFactor(gearFactor_Y);
-    link[1].begin();
+    link[1].setEpsilon(epsilon_Y);
+    link[1].setDirection(-1);
+    link[1].begin(ENABLED);
 
     // // link[2] = Z axis, SPI2, CS1,Slave0
     link[2].initSensor(SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
     link[2].initShield(PIN_PWM_U3,PIN_PWM_V3,PIN_PWM_W3,PIN_PWM_EN3,PIN_PWM_EN3,PIN_PWM_EN3);
     link[2].setRangeLimits(minLimit_Z,maxLimit_Z,defaultPos_Z);
     link[2].setGearFactor(gearFactor_Z);
-    link[2].begin();
+    link[2].setEpsilon(epsilon_Z);
+    link[2].begin(ENABLED);
 
     // link[3] = A axis, SPI2, CS2,Slave1
     link[3].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
     link[3].initShield(PIN_PWM_U4,PIN_PWM_V4,PIN_PWM_W4,PIN_PWM_EN4,PIN_PWM_EN4,PIN_PWM_EN4);
     link[3].setRangeLimits(minLimit_A,maxLimit_A,defaultPos_A);
     link[3].setGearFactor(gearFactor_A);
-    link[3].begin();
+    link[3].setEpsilon(epsilon_A);
+    link[3].begin(ENABLED);
 
     // link[4] = B axis, SPI2, CS2,Slave2
     link[4].initSensor(SPI3W2, PIN_SPI2_SS2, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S2);
     link[4].initShield(PIN_PWM_U5,PIN_PWM_V5,PIN_PWM_W5,PIN_PWM_EN5,PIN_PWM_EN5,PIN_PWM_EN5);
     link[4].setRangeLimits(minLimit_CR,maxLimit_CR,defaultPos_CR);
     link[4].setGearFactor(gearFactor_CR);
-    link[4].begin();
+    link[4].setEpsilon(epsilon_B);
+    link[4].begin(DISABLED);
 
     // link[5] = C axis, SPI2, CS3,Slave3
     link[5].initSensor(SPI3W2, PIN_SPI2_SS3, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S3);
     link[5].initShield(PIN_PWM_U6,PIN_PWM_V6,PIN_PWM_W6,PIN_PWM_EN6,PIN_PWM_EN6,PIN_PWM_EN6);
     link[5].setRangeLimits(minLimit_CL,maxLimit_CL,defaultPos_CL);
     link[5].setGearFactor(gearFactor_CL);
-    link[5].begin();
+    link[5].setEpsilon(epsilon_C);
+    link[5].begin(DISABLED);
 
     return;
 }
@@ -341,28 +367,9 @@ void jointInit()
     if (!isRun)
     {
         blink(LED1,HIGH);
-        if (isPosSpeed)
-        {
-            timerSetupDouble(500,15000);
-            Serial.println("Timer double interrupt for postion and speed added");
-        }else{
-            timerSetupSingle(200);
-            Serial.println("Timer single interrupt added");
-        }
+        timerSetupDouble(500,15000);
+        Serial.println("Timer double interrupt for postion and speed added");
         isRun = true;
-        digitalWrite(LED1, LOW);
-
-    }else{
-        for (int8_t i=0; i<jointTotalNum; i++){
-            link[i].switchShieldOnOff(LOW);
-
-            Serial.print("Switch off all shields: ");
-            Serial.println(link[i].jointName);
-
-        }
-        isRun = false;
-        digitalWrite(LED1, LOW);
-        digitalWrite(LED2, LOW);
     }
 
  }
@@ -391,7 +398,7 @@ void checkButton2(void)
             blink(LED2,HIGH);
         }
         isCalibrate = true;
-        delay(1000);
+        delay(100);
         Serial.println("All Homing positions set");
         Serial.println("\nARCTOS 2XMC ready for running\n");
 
@@ -436,6 +443,7 @@ void setup()
     pinMode(LED2, OUTPUT);
     pinMode(BUTTON1, INPUT);
     pinMode(BUTTON2, INPUT);
+    analogWriteResolution(12);
 
     // Setup jointController for each joint
     jointInit();
@@ -482,13 +490,60 @@ void loop()
         }
     }
 
-    // Run G-code
-    if (isCalibrate && isRun)
-    {
-    }
-
 }
 
+
+/**
+ * @brief Function read a new gcode program from SD card
+ * and runs ot
+ * @Attention SD reader uses 8.3 file naming
+ * @param filename
+ */
+void runProgram(String filename)
+{
+    if (!SD.begin()) {
+        Serial.println("Card failed, or not present");
+        return;
+    }else{
+        Serial.print("Load program ");
+        Serial.println(filename);
+        uint8_t prog_counter  = 0;
+        // try to open the file for writing
+        File txtFile = SD.open(filename);
+
+        if (txtFile) {
+            while (txtFile.available()) {
+                uint8_t p = txtFile.read();
+                if ((p == '\n') || (p == '\r'))  // End of line reached
+                {
+                    prog[prog_counter] = 0; // Set string termination character.
+                    Serial.println((char*)prog);
+                    while(!isIdle){};
+                    simpleGCodeParser(prog);
+                    for (int8_t i=0; i<jointTotalNum; i++){
+                        link[i].moveTo(intent_angle[i]);
+                    }
+                    // Reset tracking data for next line.
+                    prog_counter = 0;
+                } else {
+                    if (p <= ' ') {
+                        // Throw away whitespace and control characters
+                    } else if (p >= 'a' && p <= 'z') { // Upcase lowercase
+                        prog[prog_counter++] = p-'a'+'A';
+                    } else {
+                        prog[prog_counter++] = p;
+                    }
+                }
+            }
+
+            txtFile.close();
+
+        }else{
+            Serial.print("error opening ");
+            Serial.println(filename);
+        }
+    }
+}
 
 /**
  * @brief
@@ -718,14 +773,39 @@ void simpleGCodeParser(char *line)
 
 /**
  * @brief Construct a new simple System Parser object
+ * This parser understands:
+ * - $0         reports help, yet not implemented
+ * - $J         jogging, yet not implemented
+ * - $$value    grbl settings yet not implemented
+ * - $Gvalue    gcode parser, yet not implemented use G/M values
+ * - $Cvalue    set check g-code mode, enables selected joint as 0-5
+ * - $Xvalue    disable alarm lock, disable selected joint as 0-5
+ * - $P,$I,$D   sets PID values for joints A,B,C,X,Y,Z, and position/speed
+ *      [A,B,C,X,Y,Z]   the joint where to set the PID values
+ *      [P,S]           P for position PIDs and S for speed PIDs
+ *      value           the value to be set
+ * - $#         NGS parameter not implemented
+ * - $H         Homing of all joints
+ * - $H
+ *      [A,B,C,X,Y,Z]    Homing of the selected joint
+ * - $F         run the default program
+ * - $F
+ *      [0,1,2,3,4,5,6,7,8,9]   run a selected program out og nine possible
+ * - $S
+ * - $I         Print or store build info, yet not implemented
+ * - $R         Restore default, yet not implemented
+ * - $N         Startup lines, yet not implemented
+ *
  *
  * @param line
  */
 void simpleSystemParser(char *line)
 {
     uint8_t char_counter = 1;
-    uint8_t helper_var = 0; // Helper variable
+    uint8_t helper_var   = 0; // Helper variable
+    uint8_t int_value    = 0;
     float parameter, value;
+    int_value = trunc(value);
 
     switch( line[char_counter] ) {
         case 0 :
@@ -734,7 +814,7 @@ void simpleSystemParser(char *line)
         case 'J' : // Jogging
             Serial.println("Jogging");
             break;
-        case '$': case 'G': case 'C': case 'S': case 'X':
+        case '$': case 'G': case 'C': case 'X':
             if ( line[2] != 0 ) {
                 Serial.print("Invalid statement");
                 Serial.println(STATUS_INVALID_STATEMENT);
@@ -747,19 +827,79 @@ void simpleSystemParser(char *line)
                     Serial.println("gcode parser status not implemented");
                     break;
                 case 'C' : // Set check g-code mode [IDLE/CHECK]
-                    Serial.println("Reset, shield PWM are switched on");
-                    for (int8_t i=0; i<jointTotalNum; i++){
-                        link[i].switchShieldOnOff(HIGH);
-                    }
+                    Serial.print("Switch off selected joint: ");
+                    Serial.println(int_value);
+                    link[int_value].switchShieldOnOff(LOW);
                     break;
-                case 'S' : // Immediate stop
-                    Serial.println("Stop Stop Stop, all shield PWM switched off");
-                    for (int8_t i=0; i<jointTotalNum; i++){
-                        link[i].switchShieldOnOff(LOW);
-                    }
-                    break;
+                // case 'S' : // Immediate stop
+                //     Serial.println("Stop Stop Stop, all shield PWM switched off");
+                //     for (int8_t i=0; i<jointTotalNum; i++){
+                //         link[i].switchShieldOnOff(LOW);
+                //     }
+                //     break;
                 case 'X' : // Disable alarm lock [ALARM]
-                    Serial.println("Disable alarm lock not implemented");
+                    Serial.print("Switch on selected joint: ");
+                    Serial.println(int_value);
+                    link[int_value].switchShieldOnOff(HIGH);
+                    break;
+                case 'P': case 'I': case 'D':
+                    if ( line[2] != 0 ) {
+                        Serial.print("Invalid statement");
+                        Serial.println(STATUS_INVALID_STATEMENT);
+                    }
+                    int8_t joint = 0;
+                    switch(line[2]) {
+                        case 'X':
+                            joint = 0;
+                            break;
+                        case 'Y':
+                            joint = 1;
+                            break;
+                        case 'Z':
+                            joint = 2;
+                            break;
+                        case 'A':
+                            joint = 3;
+                            break;
+                        case 'B':
+                            joint = 4;
+                            break;
+                        case 'C':
+                            joint = 5;
+                            break;
+                    }
+                    if ( line[3] != 0 ) {
+                        Serial.print("Invalid statement");
+                        Serial.println(STATUS_INVALID_STATEMENT);
+                    }
+                    switch(line[3]) {
+                        case 'P':
+                            switch(line[1]) {
+                                case 'P' :
+                                    link[joint].mPid.P_pos = value;
+                                    break;
+                                case 'I' :
+                                    link[joint].mPid.I_pos = value;
+                                    break;
+                                case 'D' :
+                                    link[joint].mPid.D_pos = value;
+                                    break;
+                            }
+                            break;
+                        case 'S':
+                            switch(line[1]) {
+                                case 'P' :
+                                    link[joint].mPid.P_speed = value;
+                                    break;
+                                case 'I' :
+                                    link[joint].mPid.I_speed = value;
+                                    break;
+                                case 'D' :
+                                    link[joint].mPid.D_speed = value;
+                                    break;
+                            }
+                            break;
+                    }
                     break;
             }
             break;
@@ -806,7 +946,7 @@ void simpleSystemParser(char *line)
                        }
                     }
                     break;
-                case 'P' : // runs gcode programs from SD card
+                case 'F' : // runs gcode programs from SD card
                     if (line[2] == 0) {
                         Serial.println("Run default program");
                         runProgram("default");
@@ -843,7 +983,18 @@ void simpleSystemParser(char *line)
                     }
                     break;
                 case 'S' : // Puts Grbl to sleep [IDLE/ALARM]
-                    Serial.println("Sleep mode not implemented");
+                    Serial.println("Stop Stop Stop, all shield PWM switched off");
+                    for (int8_t i=0; i<jointTotalNum; i++){
+                        link[i].switchShieldOnOff(LOW);
+                    }
+
+
+                    // Serial.println("Toggles all PWM");
+
+                    // Serial.println("Switches off all PWM");
+                    // for (int8_t i=0; i<jointTotalNum; i++){
+                    //     link[i].switchShieldOnOff(HIGH);
+                    // }
                     break;
                 case 'I' : // Print or store build info. [IDLE/ALARM]
                     Serial.println("Store build info not implemented");
@@ -862,66 +1013,4 @@ void simpleSystemParser(char *line)
 
     }
 
-}
-
-/**
- * @brief Function read a new gcode program from SD card
- * and runs ot
- * @Attention SD reader uses 8.3 file naming
- * @param filename
- */
-void runProgram(String filename)
-{
-    if (!SD.begin()) {
-        Serial.println("Card failed, or not present");
-        return;
-    }else{
-        Serial.print("Load program ");
-        Serial.println(filename);
-        uint8_t prog_counter  = 0;
-        // try to open the file for writing
-        File txtFile = SD.open(filename);
-
-        if (txtFile) {
-            while (txtFile.available()) {
-                uint8_t p = txtFile.read();
-                if ((p == '\n') || (p == '\r'))  // End of line reached
-                {
-                    prog[prog_counter] = 0; // Set string termination character.
-                    Serial.println((char*)prog);
-                    while(!isIdle){};
-                    simpleGCodeParser(prog);
-                    for (int8_t i=0; i<jointTotalNum; i++){
-                        link[i].moveTo(intent_angle[i]);
-                    }
-                    // Reset tracking data for next line.
-                    prog_counter = 0;
-                } else {
-                    if (p <= ' ') {
-                        // Throw away whitespace and control characters
-                    } else if (p >= 'a' && p <= 'z') { // Upcase lowercase
-                        prog[prog_counter++] = p-'a'+'A';
-                    } else {
-                        prog[prog_counter++] = p;
-                    }
-                }
-            }
-
-            txtFile.close();
-
-        }else{
-            Serial.print("error opening ");
-            Serial.println(filename);
-        }
-    }
-}
-
-boolean checkStatus()
-{
-    boolean idle = true;
-    for (int8_t i=0; i<jointTotalNum; i++){
-        if (link[i].checkStatus() != NONE)
-            idle = false;
-    }
-    return idle;
 }

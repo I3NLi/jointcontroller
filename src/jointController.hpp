@@ -77,11 +77,12 @@ class jointController
         jointController(char *name,boolean debugPrint);
         ~jointController();
 
-        void begin();
+        void begin(boolean enable);
 
         errorTypes initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t misoPin, uint8_t mosiPin, uint8_t sckPin, Tle5012Ino::slaveNum slave);
         errorTypes initShield(uint8_t U,uint8_t V,uint8_t W,uint8_t EN_U,uint8_t EN_V,uint8_t EN_W);
 
+        void setDirection(int8_t dir);
         void setPID(double P, double I, double D);
         void setPIDpos(double P_pos, double I_pos, double D_pos);
         void setPIDspeed(double P_speed, double I_speed, double D_speed);
@@ -92,11 +93,14 @@ class jointController
         void setGearFactor(double gearFactor=1.0);
         void readFromSD(const char* filename);
 
+        double getActualAngle();
+
         double setHomingPosition(double startPos=0.0);
         double angleInsideRangeLimits(double rawAngle);
         double calculateAngle(double gf=1.0);
 
-        void switchShieldOnOff(int8_t status);
+        void jointEnable(boolean enable);
+        void switchShieldOnOff(int8_t onoff);
 
         eStatus checkStatus();
         eStatus homing();
@@ -109,11 +113,14 @@ class jointController
 
         eStatus status = NONE;
 
+        motorSetup_t    mMotor;                         //!> motor setup values structure
+        pidParam_t      mPid;                           //!> PID values structure
 
     private:
 
         File txtFile;                                   //! File object to represent file
         boolean isLogging = false;                      //! debug printing
+        boolean isEnabled = true;                       //! is the joint enabled
 
         errorTypes sensorError = NO_ERROR;              //!> error type for sensors
         errorTypes shieldError = NO_ERROR;              //!> error type for shields
@@ -126,9 +133,8 @@ class jointController
         uint8_t pin_EN_W;                               //!> ditto W channel
 
         posLimits_t     mLimits;                        //!> limits structure
-        pidParam_t      mPid;                           //!> PID values structure
-        anglePos_t      mAnglePos;
-        motorSetup_t    mMotor;                         //!> motor setup values structure
+        anglePos_t      mAnglePos;                      //!> angle position external and internal
+        int8_t          mDirection;                     //!> forward or reverse
 
         double          mPWMResolution;                 //!> bit resolution of the analog pins
         volatile double mIntegrator;                    //!> this will sum all the errors for i part of pid controller
@@ -138,6 +144,7 @@ class jointController
         volatile double lastAngle;                      //!> last angle position with full revolution
         volatile double lastPos;                        //!> last position in 0.360 deg
         volatile double newPos;                         //!> new postion  for speed/pos PID
+        
 
         int16_t PWM_U_values[arraySize];                //!> PWM predefined values for U
         int16_t PWM_V_values[arraySize];                //!> PWM predefined values for V

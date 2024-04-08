@@ -59,6 +59,8 @@ jointController::jointController(char *name,boolean debugPrint)
     mAnglePos.jointActualPos    = 0.0;
 
     isLogging                   = debugPrint;
+    isEnabled                   = ENABLED;
+    mDirection                  = 1;
 }
 
 /**
@@ -72,15 +74,35 @@ jointController::~jointController()
 /**
  * @brief begin function starts the motor and sensor object if they are set
  *
+ * @param enable true/false setting
  */
-void jointController::begin()
+void jointController::begin(boolean enable)
 {
+    jointEnable(enable);
     String cal_file = String("CAL") + String(jointName) + String(".txt");
     String pwm_file = String("PWM") + String(jointName) + String(".txt");
 
-    _readPWMArray(pwm_file);
-    _readMotorCalibration( cal_file  );
+    if (isEnabled)
+    {
+        _readPWMArray(pwm_file);
+        _readMotorCalibration( cal_file  );
+    }
+
+    switchShieldOnOff(HIGH);
+
 }
+
+/**
+ * @brief Function enables/disables joint.
+ * A disabled joint switches off the motor and does not 
+ * set a status other than NONE
+ * 
+ * @param enable true/false setting
+ */
+void jointController::jointEnable(boolean enable)
+{
+    isEnabled = enable;
+} 
 
 /**
  * @brief construct a TLE5012 sensor for the jointController
@@ -98,7 +120,6 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
 {
     this->sensor = new Tle5012Ino(&bus, csPin, misoPin, mosiPin, sckPin, slave);
     sensorError = sensor->begin();
-
     this->sensor->reg.enableSpikeFilter();
 
     if (isLogging)
@@ -144,10 +165,6 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
     pinMode(pin_EN_V, OUTPUT);
     pinMode(pin_EN_W, OUTPUT);
 
-    digitalWrite(pin_EN_U, HIGH);
-    digitalWrite(pin_EN_V, HIGH);
-    digitalWrite(pin_EN_W, HIGH);
-
     shieldError = NO_ERROR;
     if (isLogging)
     {
@@ -167,17 +184,31 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
 /**
  * @brief Switches the shield enable pin HIGH or LOW
  * and therefore the BLDC on or off.
+ * A disabled joint will stay off even if switched on.
  * 
- * @param status 
+ * @param status true/false setting
  */
-void jointController::switchShieldOnOff(int8_t status)
+void jointController::switchShieldOnOff(int8_t onoff)
 {
-    digitalWrite(pin_EN_U, status);
-    digitalWrite(pin_EN_V, status);
-    digitalWrite(pin_EN_W, status);
+    if (!isEnabled)
+    {
+        onoff = LOW;
+    }
+    digitalWrite(pin_EN_U, onoff);
+    digitalWrite(pin_EN_V, onoff);
+    digitalWrite(pin_EN_W, onoff);
     status = NONE;
 }
 
+/**
+ * @brief 
+ * 
+ * @param dir 
+ */
+void jointController::setDirection(int8_t dir)
+{
+    mDirection = dir;
+}
 
 /**
  * @brief Set the Gear Factor object
@@ -328,6 +359,17 @@ double jointController::setHomingPosition(double startPos)
 }
 
 /**
+ * @brief 
+ * 
+ * @return double 
+ */
+double jointController::getActualAngle()
+{
+    return mAnglePos.jointActualAngle / mAnglePos.gearFactor;
+}
+
+
+/**
  * @brief function returns the actual position
  * The raw angle is fetched from the sensor as -180-180 degree,
  * which has to be recalculated to 0-350 degree and added with
@@ -443,6 +485,7 @@ void jointController:: _readMotorCalibration(String filename)
  * Therefore is will run the motor with highest speed and less current.
  * BLDC motors should run silent and stay cold when offset and phase shift are
  * optimal calibrated. Also no clicking sound should be hearable.
+ * This function is for debugging of the motor run parameter.
  * 
  */
 void jointController::motorRunTest()
@@ -465,6 +508,7 @@ void jointController::motorRunTest()
     if (isLogging) {
         Serial.print(jointName);
         Serial.print("  a: ");Serial.print(angle);
+        Serial.print("; ");
     }
 
 }
@@ -480,8 +524,8 @@ void jointController::motorRunTest()
  */
 eStatus jointController::checkStatus()
 {
-    if ( mAnglePos.targetAngle - mMotor.epsilon >= mAnglePos.jointActualAngle &&
-         mAnglePos.targetAngle + mMotor.epsilon <= mAnglePos.jointActualAngle )
+    if ( abs(mAnglePos.targetAngle - mMotor.epsilon) >= mAnglePos.jointActualAngle &&
+         abs(mAnglePos.targetAngle + mMotor.epsilon) <= mAnglePos.jointActualAngle )
     {
         status = NONE;
     } 
@@ -496,9 +540,12 @@ eStatus jointController::checkStatus()
  */
 eStatus jointController::homing()
 {
-    status = HOMING;
     mAnglePos.targetAngle = mLimits.startPos;
     mAnglePos.jointTargetAngle = mLimits.startPos * mAnglePos.gearFactor;
+    if(isEnabled)
+    {
+        status = HOMING;
+    } 
     return status;
 }
 
@@ -514,9 +561,13 @@ eStatus jointController::homing()
 eStatus jointController::moveTo(double target_angle)
 {
     if (status != HOMING){
+        target_angle = target_angle * mDirection;
         mAnglePos.targetAngle = constrain( target_angle, mLimits.minLimit, mLimits.maxLimit);
-        mAnglePos.jointTargetAngle = target_angle * mAnglePos.gearFactor;
+        mAnglePos.jointTargetAngle = mAnglePos.targetAngle * mAnglePos.gearFactor;
         status = RUNNING;
+    }
+    if (!isEnabled){
+        status = NONE;
     }
     return status;
 }
@@ -562,12 +613,12 @@ void jointController::runToAnglePID()
     analogWrite(pin_V, mPWMResolution + duty * PWM_V_values[angleTable] / mPWMResolution );
     analogWrite(pin_W, mPWMResolution + duty * PWM_W_values[angleTable] / mPWMResolution );
 
-    if (isLogging) {
-        Serial.print(jointName);
-        Serial.print("  a: ");Serial.print(mAnglePos.jointActualAngle);
-        Serial.print("  t: ");Serial.print(mAnglePos.jointTargetAngle);
-        Serial.print("\t");
-    }
+    // if (isLogging) {
+    //     Serial.print(jointName);
+    //     Serial.print("  a: ");Serial.print(mAnglePos.jointActualAngle);
+    //     Serial.print("  t: ");Serial.print(mAnglePos.jointTargetAngle);
+    //     Serial.println("\t");
+    // }
 }
 
 
@@ -617,7 +668,7 @@ void jointController::runToAngleSpeed()
 {
     double raw_angle = 0.0;                                                                     //! raw angle value from -180 deg to 180 deg
     int16_t revolutions = 0;                                                                    //! number of revolutions counted as +/- 360 deg
-    int16_t phaseShift = mMotor.phaseShift;                                                     //! with positive phaseShift turn clockwise
+    int16_t phaseShift = abs(mMotor.phaseShift);                                                //! with positive phaseShift turn clockwise
 
     double speed = 0.0;
 
@@ -643,7 +694,7 @@ void jointController::runToAngleSpeed()
     double control_speed = error_speed * mPid.P_speed + mIntegratorSpeed * mPid.I_speed + speed * mPid.D_speed; 
 
     // duty cycle calculation
-    if (control_speed < 0){phaseShift *= -1;}                                                   //! turn counterclockwise
+    if (control_speed <  0){ phaseShift *= mMotor.phaseShift * -1;}
     int16_t duty = constrain(abs(control_speed),0,mPWMResolution);
 
     // PWM table fetch
@@ -659,13 +710,13 @@ void jointController::runToAngleSpeed()
     // if (isLogging) {
     //     Serial.print(" Speed ");
     //     Serial.print(jointName);
-    //     Serial.println(mAnglePos.jointActualAngle);
-    //     // Serial.print("  p: ");Serial.print(mAnglePos.jointActualPos);
-    //     // Serial.print("  t: ");Serial.print(mAnglePos.jointTargetAngle);
-    //     // Serial.print("  d: ");Serial.print(duty);
-    //     // Serial.print("  s: ");Serial.print(speed);
-    //     // Serial.print("  l: ");Serial.print(lastPos);
-    //     // Serial.print("\n");
+    //     Serial.print(mAnglePos.jointActualAngle);
+    //     Serial.print("  p: ");Serial.print(mAnglePos.jointActualPos);
+    //     Serial.print("  t: ");Serial.print(mAnglePos.jointTargetAngle);
+    //     Serial.print("  d: ");Serial.print(duty);
+    //     Serial.print("  s: ");Serial.print(speed);
+    //     Serial.print("  l: ");Serial.print(lastPos);
+    //     Serial.print("\n");
     // }
 }
 

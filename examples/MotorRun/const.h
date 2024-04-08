@@ -140,3 +140,14 @@
 #define defaultPos_C       0.0
 #define defaultPos_CL      0.0
 #define defaultPos_CR      0.0
+
+
+// default home position
+#define epsilon_X          2.0
+#define epsilon_Y          1.0
+#define epsilon_Z          0.0
+#define epsilon_A          0.0
+#define epsilon_B          0.0
+#define epsilon_C          0.0
+#define epsilon_CL         0.0
+#define epsilon_CR         0.0

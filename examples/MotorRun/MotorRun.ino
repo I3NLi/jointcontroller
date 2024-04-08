@@ -27,12 +27,12 @@ uint8_t okTimer1;
  */
 #define jointTotalNum  1                                     //!> total number of controlled joints
 jointController link[jointTotalNum] = {                      //!> joint controller array
-//    ( jointController( (char*)"X", true ) ),
-//    ( jointController( (char*)"Y", true ) ),
-    ( jointController( (char*)"Z", true ) ),
-//    ( jointController( (char*)"C", true ) ),
-//    ( jointController( (char*)"B", true ) ),
-//    ( jointController( (char*)"C", true ) )
+    // ( jointController( (char*)"X", true ) ),
+    // ( jointController( (char*)"Y", true ) ),
+    // ( jointController( (char*)"Z", true ) ),
+    ( jointController( (char*)"A", true ) ),
+    // ( jointController( (char*)"B", true ) ),
+    // ( jointController( (char*)"C", true ) )
 };
 
 /**
@@ -40,8 +40,8 @@ jointController link[jointTotalNum] = {                      //!> joint controll
  * 
  */
 volatile double intent_angle[jointTotalNum] = {
+    0.0,
     // 0.0,
-     0.0,
     // 0.0,
     // 0.0,
     // 0.0,
@@ -59,7 +59,7 @@ double testAngle = 0.0;
  */
 void jointInit()
 {
-    // // link[0] = X axis = base; SPI1,CS1,Slave0
+    // link[0] = X axis = base; SPI1,CS1,Slave0
     // link[0].initSensor(SPI3W1, PIN_SPI1_SS0, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S0);
     // link[0].initShield(PIN_PWM_U1,PIN_PWM_V1,PIN_PWM_W1,PIN_PWM_EN1,PIN_PWM_EN1,PIN_PWM_EN1);
     // link[0].setRangeLimits(minLimit_X,maxLimit_X,defaultPos_X);
@@ -71,37 +71,40 @@ void jointInit()
     // link[1].initShield(PIN_PWM_U2,PIN_PWM_V2,PIN_PWM_W2,PIN_PWM_EN2,PIN_PWM_EN2,PIN_PWM_EN2);
     // link[1].setRangeLimits(minLimit_Y,maxLimit_Y,defaultPos_Y);
     // link[1].setGearFactor(gearFactor_Y);
-    // link[1].begin();
+    // link[1].setEpsilon(epsilon_Y);
+    // link[1].begin(ENABLED);
 
     // // link[2] = Z axis, SPI2, CS1,Slave0, index=3, Z axis
-    link[0].initSensor(SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
-    link[0].initShield(PIN_PWM_U3,PIN_PWM_V3,PIN_PWM_W3,PIN_PWM_EN3,PIN_PWM_EN3,PIN_PWM_EN3);
-    link[0].setRangeLimits(minLimit_Z,maxLimit_Z,defaultPos_Z);
-    link[0].setGearFactor(gearFactor_Z);
-    link[0].begin();
-
+    // link[2].initSensor(SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
+    // link[2].initShield(PIN_PWM_U3,PIN_PWM_V3,PIN_PWM_W3,PIN_PWM_EN3,PIN_PWM_EN3,PIN_PWM_EN3);
+    // link[2].setRangeLimits(minLimit_Z,maxLimit_Z,defaultPos_Z);
+    // link[2].setGearFactor(gearFactor_Z);
+    // link[2].setEpsilon(epsilon_Z);
+    // link[2].begin(ENABLED);
 
     // // link[3] = A axis, SPI2, CS2,Slave1, index=4, A axis
-//CR
-    // link[0].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
-    // link[0].initShield(PIN_PWM_U4,PIN_PWM_V4,PIN_PWM_W4,PIN_PWM_EN4,PIN_PWM_EN4,PIN_PWM_EN4);
-    // link[0].setRangeLimits(minLimit_A,maxLimit_A,defaultPos_A);
-    // link[0].setGearFactor(gearFactor_A);
-    // link[0].begin();
+    link[0].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
+    link[0].initShield(PIN_PWM_U4,PIN_PWM_V4,PIN_PWM_W4,PIN_PWM_EN4,PIN_PWM_EN4,PIN_PWM_EN4);
+    link[0].setRangeLimits(minLimit_A,maxLimit_A,defaultPos_A);
+    link[0].setGearFactor(gearFactor_A);
+    link[0].setEpsilon(epsilon_A);
+    link[0].begin(ENABLED);
 
     // // link[4] = B axis, SPI2, CS2,Slave2, index=5, B axis
     // link[4].initSensor(SPI3W2, PIN_SPI2_SS2, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S2);
     // link[4].initShield(PIN_PWM_U5,PIN_PWM_V5,PIN_PWM_W5,PIN_PWM_EN5,PIN_PWM_EN5,PIN_PWM_EN5);
     // link[4].setRangeLimits(minLimit_CR,maxLimit_CR,defaultPos_CR);
     // link[4].setGearFactor(gearFactor_CR);
-    // link[4].begin();
+    // link[4].setEpsilon(epsilon_B);
+    // link[4].begin(ENABLED);
 
     // // link[5] = C axis, SPI2, CS3,Slave3, index=6, C axis
     // link[5].initSensor(SPI3W2, PIN_SPI2_SS3, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S3);
     // link[5].initShield(PIN_PWM_U6,PIN_PWM_V6,PIN_PWM_W6,PIN_PWM_EN6,PIN_PWM_EN6,PIN_PWM_EN6);
     // link[5].setRangeLimits(minLimit_CL,maxLimit_CL,defaultPos_CL);
     // link[5].setGearFactor(gearFactor_CL);
-    // link[5].begin();
+    // link[5].setEpsilon(epsilon_C);
+    // link[5].begin(ENABLED);
 
     return;
 }
@@ -151,27 +154,6 @@ void setup()
 void loop()
 {
 
-    while (Serial.available() != 0)
-    {
-        int input = 0;
-        input = Serial.read();
-
-        // + sign raises the PhaseShift
-        if (input == 43)
-        {
-        link[0].mMotor.phaseShift +=1;
-        Serial.print("\t"); Serial.println(link[0].mMotor.phaseShift);
-        }
-
-        // - sign lowers the PhaseShift
-        if (input == 45)
-        {
-        link[0].mMotor.phaseShift -=1;
-        Serial.print("\t"); Serial.println(link[0].mMotor.phaseShift);
-        }
-
-    }
-
 
 }
 
@@ -195,7 +177,36 @@ extern "C" {
         }
         Serial.println("");
         digitalWrite(LED2, LOW);
+
+
+        while (Serial.available() != 0)
+        {
+            int input = 0;
+            input = Serial.read();
+
+            // + sign raises the PhaseShift
+            if (input == 43)
+            {
+            link[0].mMotor.phaseShift +=1;
+            Serial.print("\t"); Serial.println(link[0].mMotor.phaseShift);
+            }
+
+            // - sign lowers the PhaseShift
+            if (input == 45)
+            {
+            link[0].mMotor.phaseShift -=1;
+            Serial.print("\t"); Serial.println(link[0].mMotor.phaseShift);
+            }
+
+            if (input == 111)
+            {
+                link[0].jointEnable(DISABLED);
+                link[0].switchShieldOnOff(HIGH);
+            }
+
+        }
     }
+
 }
 
 /**

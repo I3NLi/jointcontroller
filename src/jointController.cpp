@@ -51,6 +51,7 @@ jointController::jointController(char *name,boolean debugPrint)
     mMotor.phaseShift           = 0;
     mMotor.sensorOffset         = 0;
     mMotor.epsilon              = 0;
+    mMotor.speedReducer         = 1.0;
 
     mAnglePos.gearFactor        = 1.0;
     mAnglePos.targetAngle       = 0.0;
@@ -703,9 +704,9 @@ void jointController::runToAngleSpeed()
     if (angleTable < 0)          { angleTable += arraySize; }
  
     // motor setting
-    analogWrite(pin_U, mPWMResolution + duty * PWM_U_values[angleTable] / mPWMResolution );
-    analogWrite(pin_V, mPWMResolution + duty * PWM_V_values[angleTable] / mPWMResolution );
-    analogWrite(pin_W, mPWMResolution + duty * PWM_W_values[angleTable] / mPWMResolution );
+    analogWrite(pin_U, mPWMResolution + duty * mMotor.speedReducer * PWM_U_values[angleTable] / mPWMResolution );
+    analogWrite(pin_V, mPWMResolution + duty * mMotor.speedReducer * PWM_V_values[angleTable] / mPWMResolution );
+    analogWrite(pin_W, mPWMResolution + duty * mMotor.speedReducer * PWM_W_values[angleTable] / mPWMResolution );
 
     // if (isLogging) {
     //     Serial.print(" Speed ");

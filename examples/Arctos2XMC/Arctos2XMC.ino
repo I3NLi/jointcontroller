@@ -35,6 +35,7 @@ double testAngle            = 0.0;
 uint8_t line_flags          = 0;
 uint8_t char_counter        = 0;
 uint8_t c;
+uint16_t tcount             = 0;
 
 uint8_t numProgLines        = 0;
 uint8_t actualProgLine      = 0;
@@ -151,6 +152,19 @@ extern "C"
         digitalWrite(LED1, LOW);
 
         isIdle = checkAllJointsStatus();
+
+
+        tcount++;
+        if (tcount>=20)
+        {
+          for (int8_t i=0; i<jointTotalNum; i++){
+              Serial.print(link[i].mAnglePos.jointActualAngle);
+              Serial.print("; ");
+              //link[i].moveTo(intent_angle[i]);
+          }
+          Serial.println("");
+          tcount=0;
+        }
 
         while (Serial.available() != 0)
         {
@@ -335,13 +349,12 @@ void jointInit()
     link[3].setRangeLimits(minLimit_A,maxLimit_A,defaultPos_A);
     link[3].setGearFactor(gearFactor_A);
     link[3].setEpsilon(epsilon_A);
-    link[3].begin(ENABLED);
+    link[3].begin(DISABLED);
 
     // link[4] = B axis, SPI2, CS2,Slave2
     link[4].initSensor(SPI3W2, PIN_SPI2_SS2, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S2);
     link[4].initShield(PIN_PWM_U5,PIN_PWM_V5,PIN_PWM_W5,PIN_PWM_EN5,PIN_PWM_EN5,PIN_PWM_EN5);
     link[4].setRangeLimits(minLimit_CR,maxLimit_CR,defaultPos_CR);
-    link[4].setGearFactor(gearFactor_CR);
     link[4].setEpsilon(epsilon_B);
     link[4].begin(DISABLED);
 
@@ -830,6 +843,45 @@ void simpleSystemParser(char *line)
                     Serial.print("Switch off selected joint: ");
                     Serial.println(int_value);
                     link[int_value].switchShieldOnOff(LOW);
+                    break;
+                case 'V' :
+                    if ( line[2] != 0 || value <= 0) {
+                        Serial.print("Invalid statement");
+                        Serial.println(STATUS_INVALID_STATEMENT);
+                    }
+                    switch(line[2]) {
+                        case 'X':
+                            Serial.print("Speedreducer X joint: ");
+                            Serial.println(value);
+                            link[0].mMotor.speedReducer = value;
+                            break;
+                        case 'Y':
+                            Serial.print("Speedreducer Y joint: ");
+                            Serial.println(value);
+                            link[1].mMotor.speedReducer = value;
+                            break;
+                        case 'Z':
+                            Serial.print("Speedreducer Z joint: ");
+                            Serial.println(value);
+                            link[2].mMotor.speedReducer = value;
+                            break;
+                        case 'A':
+                            Serial.print("Speedreducer A joint: ");
+                            Serial.println(value);
+                            link[3].mMotor.speedReducer = value;
+                            break;
+                        case 'B':
+                            Serial.print("Speedreducer B joint: ");
+                            Serial.println(value);
+                            link[4].mMotor.speedReducer = value;
+                            break;
+                        case 'C':
+                            Serial.print("Speedreducer C joint: ");
+                            Serial.println(value);
+                            link[5].mMotor.speedReducer = value;
+                            break;
+                    }
+
                     break;
                 // case 'S' : // Immediate stop
                 //     Serial.println("Stop Stop Stop, all shield PWM switched off");

@@ -63,6 +63,7 @@ class jointController
             int16_t phaseShift;                             //!> motor phase shift value for the electrical field 
             double sensorOffset;                            //!> sensor offset for the mechanical 0 deg
             double epsilon;                                 //!> epsilon range around a target position which is still ok
+            double speedReducer;
         } motorSetup_t;
 
         typedef struct anglePos {
@@ -115,6 +116,7 @@ class jointController
 
         motorSetup_t    mMotor;                         //!> motor setup values structure
         pidParam_t      mPid;                           //!> PID values structure
+        anglePos_t      mAnglePos;                      //!> angle position external and internal
 
     private:
 
@@ -133,7 +135,6 @@ class jointController
         uint8_t pin_EN_W;                               //!> ditto W channel
 
         posLimits_t     mLimits;                        //!> limits structure
-        anglePos_t      mAnglePos;                      //!> angle position external and internal
         int8_t          mDirection;                     //!> forward or reverse
 
         double          mPWMResolution;                 //!> bit resolution of the analog pins

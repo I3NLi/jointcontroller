@@ -35,8 +35,8 @@ String buffer;                                    //! string to buffer output
 // Shield on top test
 tle5012::SPIClass3W tle5012::SPI3W1(1);         //!< SPI port 1 on XMC4700 X1 according HW SPI setup
 tle5012::SPIClass3W tle5012::SPI3W2(2);
-// Tle5012Ino Tle5012Sensor = Tle5012Ino(&SPI3W1, PIN_SPI1_SS1, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S1);
-Tle5012Ino Tle5012Sensor = Tle5012Ino(&SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
+Tle5012Ino Tle5012Sensor = Tle5012Ino(&SPI3W1, PIN_SPI1_SS0, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S0);
+// Tle5012Ino Tle5012Sensor = Tle5012Ino(&SPI3W2, PIN_SPI2_SS3, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
 // const int U    = PIN_PWM_U_SHIELD;
 // const int V    = PIN_PWM_V_SHIELD;
 // const int W    = PIN_PWM_W_SHIELD;
@@ -44,23 +44,22 @@ Tle5012Ino Tle5012Sensor = Tle5012Ino(&SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_
 // const int EN_V = PIN_PWM_EN_V_SHIELD;
 // const int EN_W = PIN_PWM_EN_W_SHIELD;
 
-const int U = 51;
-const int V = 61;
-const int W = 62;
-const int EN_U = 74;
-const int EN_V = 74;
-const int EN_W = 74;
+const int U = 11;
+const int V = 10;
+const int W = 9;
+const int EN_U = 8;
+const int EN_V = 8;
+const int EN_W = 8;
 
 
 
 errorTypes checkError = NO_ERROR;
 int i = 0;
-int duty = 1000;                                   //! duty cycle 0-127
+int duty = 100;                                   //! duty cycle 0-127
 
 
 // motor settings
 #define POLEPAIRS 4                               //! Number of pole pairs of the motor (number of poles / 2 )
-
 #define PHASE_DELAY_1 (double)2.094395102         // 120° offset
 #define PHASE_DELAY_2 (double)4.188790205         // 240° offset
 
@@ -108,8 +107,6 @@ extern "C"
       double angle = angle_raw >=0     //! this will synchronize real ange to intended angle
           ? angle_raw
           : 360 + angle_raw;
-
-Serial.println(angle);
 
       int angle_out = angle * resolution;         // 0-3600
       myPWM_U_values[angle_out] = pwmOne;

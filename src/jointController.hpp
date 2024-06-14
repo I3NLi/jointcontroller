@@ -61,9 +61,9 @@ class jointController
         typedef struct motorSetup {
             int16_t offset;                                 //!> motor offset value for the electrical field
             int16_t phaseShift;                             //!> motor phase shift value for the electrical field 
+            int16_t dutycycle;                              //!> motor dutycycle
             double sensorOffset;                            //!> sensor offset for the mechanical 0 deg
             double epsilon;                                 //!> epsilon range around a target position which is still ok
-            double speedReducer;
         } motorSetup_t;
 
         typedef struct anglePos {
@@ -74,6 +74,21 @@ class jointController
             double jointActualPos;                          //!> internal actual position 0-360° reached
         } anglePos_t;
 
+        typedef struct pinSet {
+            uint8_t pin_U;                                  //!> U wave for BLDC
+            uint8_t pin_V;                                  //!> ditto V 120 deg ahead
+            uint8_t pin_W;                                  //!> ditto W again 120 deg ahead
+            uint8_t pin_EN_U;                               //!> switch on U channel
+            uint8_t pin_EN_V;                               //!> ditto V channel
+            uint8_t pin_EN_W;                               //!> ditto W channel
+
+        } pinSet_t;
+
+        typedef struct pwmArray {
+            int16_t PWM_U_values[arraySize];                //!> PWM predefined values for U
+            int16_t PWM_V_values[arraySize];                //!> PWM predefined values for V
+            int16_t PWM_W_values[arraySize];                //!> PWM predefined values for W
+        } pwmArray_t;
 
         jointController(char *name,boolean debugPrint);
         ~jointController();
@@ -115,8 +130,9 @@ class jointController
         eStatus status = NONE;
 
         motorSetup_t    mMotor;                         //!> motor setup values structure
-        pidParam_t      mPid;                           //!> PID values structure
-        anglePos_t      mAnglePos;                      //!> angle position external and internal
+        pidParam_t      mPID;                           //!> PID values structure
+        pinSet_t        mPin;
+        pwmArray_t      mPWM;
 
     private:
 
@@ -127,14 +143,8 @@ class jointController
         errorTypes sensorError = NO_ERROR;              //!> error type for sensors
         errorTypes shieldError = NO_ERROR;              //!> error type for shields
 
-        uint8_t pin_U;                                  //!> U wave for BLDC
-        uint8_t pin_V;                                  //!> ditto V 120 deg ahead
-        uint8_t pin_W;                                  //!> ditto W again 120 deg ahead
-        uint8_t pin_EN_U;                               //!> switch on U channel
-        uint8_t pin_EN_V;                               //!> ditto V channel
-        uint8_t pin_EN_W;                               //!> ditto W channel
-
         posLimits_t     mLimits;                        //!> limits structure
+        anglePos_t      mAnglePos;                      //!> angle position external and internal
         int8_t          mDirection;                     //!> forward or reverse
 
         double          mPWMResolution;                 //!> bit resolution of the analog pins
@@ -145,11 +155,6 @@ class jointController
         volatile double lastAngle;                      //!> last angle position with full revolution
         volatile double lastPos;                        //!> last position in 0.360 deg
         volatile double newPos;                         //!> new postion  for speed/pos PID
-        
-
-        int16_t PWM_U_values[arraySize];                //!> PWM predefined values for U
-        int16_t PWM_V_values[arraySize];                //!> PWM predefined values for V
-        int16_t PWM_W_values[arraySize];                //!> PWM predefined values for W
 
         void _readPWMArray(String filename);
         void _readMotorCalibration(String filename);

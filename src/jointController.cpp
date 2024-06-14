@@ -31,17 +31,17 @@ jointController::jointController(char *name,boolean debugPrint)
     lastPos                     = 0.0;
     newPos                      = 0.0;
 
-    mPid.P                      = 0.0;
-    mPid.I                      = 0.0;
-    mPid.D                      = 0.0;
+    mPID.P                      = 0.0;
+    mPID.I                      = 0.0;
+    mPID.D                      = 0.0;
 
-    mPid.P_pos                  = 0.0;
-    mPid.I_pos                  = 0.0;
-    mPid.D_pos                  = 0.0;
+    mPID.P_pos                  = 0.0;
+    mPID.I_pos                  = 0.0;
+    mPID.D_pos                  = 0.0;
 
-    mPid.P_speed                = 0.0;
-    mPid.I_speed                = 0.0;
-    mPid.D_speed                = 0.0;
+    mPID.P_speed                = 0.0;
+    mPID.I_speed                = 0.0;
+    mPID.D_speed                = 0.0;
 
     mLimits.minLimit            = 0.0;
     mLimits.maxLimit            = 0.0;
@@ -51,7 +51,6 @@ jointController::jointController(char *name,boolean debugPrint)
     mMotor.phaseShift           = 0;
     mMotor.sensorOffset         = 0;
     mMotor.epsilon              = 0;
-    mMotor.speedReducer         = 1.0;
 
     mAnglePos.gearFactor        = 1.0;
     mAnglePos.targetAngle       = 0.0;
@@ -147,37 +146,37 @@ errorTypes jointController::initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t m
  */
  errorTypes jointController::initShield(uint8_t U,uint8_t V,uint8_t W,uint8_t EN_U,uint8_t EN_V,uint8_t EN_W)
  {
-    pin_U     = U;
-    pin_V     = V;
-    pin_W     = W;
-    pin_EN_U  = EN_U;
-    pin_EN_V  = EN_V;
-    pin_EN_W  = EN_W;
+    mPin.pin_U     = U;
+    mPin.pin_V     = V;
+    mPin.pin_W     = W;
+    mPin.pin_EN_U  = EN_U;
+    mPin.pin_EN_V  = EN_V;
+    mPin.pin_EN_W  = EN_W;
 
-    pinMode(pin_U, OUTPUT);
-    pinMode(pin_V, OUTPUT);
-    pinMode(pin_W, OUTPUT);
+    pinMode(mPin.pin_U, OUTPUT);
+    pinMode(mPin.pin_V, OUTPUT);
+    pinMode(mPin.pin_W, OUTPUT);
 
-    setAnalogWriteFrequency(pin_U,PWMFrequency);
-    setAnalogWriteFrequency(pin_V,PWMFrequency);
-    setAnalogWriteFrequency(pin_W,PWMFrequency);
+    setAnalogWriteFrequency(mPin.pin_U,PWMFrequency);
+    setAnalogWriteFrequency(mPin.pin_V,PWMFrequency);
+    setAnalogWriteFrequency(mPin.pin_W,PWMFrequency);
 
-    pinMode(pin_EN_U, OUTPUT);
-    pinMode(pin_EN_V, OUTPUT);
-    pinMode(pin_EN_W, OUTPUT);
+    pinMode(mPin.pin_EN_U, OUTPUT);
+    pinMode(mPin.pin_EN_V, OUTPUT);
+    pinMode(mPin.pin_EN_W, OUTPUT);
 
     shieldError = NO_ERROR;
     if (isLogging)
     {
         Serial.print(jointName);
         Serial.print(" PWM Pin: ");
-        Serial.print(pin_U); Serial.print(":");
-        Serial.print(pin_V); Serial.print(":");
-        Serial.print(pin_W);
+        Serial.print(mPin.pin_U); Serial.print(":");
+        Serial.print(mPin.pin_V); Serial.print(":");
+        Serial.print(mPin.pin_W);
         Serial.print(" EN Pin: ");
-        Serial.print(pin_EN_U); Serial.print(":");
-        Serial.print(pin_EN_V); Serial.print(":");
-        Serial.println(pin_EN_W);
+        Serial.print(mPin.pin_EN_U); Serial.print(":");
+        Serial.print(mPin.pin_EN_V); Serial.print(":");
+        Serial.println(mPin.pin_EN_W);
     }
     return shieldError;
  }
@@ -195,9 +194,9 @@ void jointController::switchShieldOnOff(int8_t onoff)
     {
         onoff = LOW;
     }
-    digitalWrite(pin_EN_U, onoff);
-    digitalWrite(pin_EN_V, onoff);
-    digitalWrite(pin_EN_W, onoff);
+    digitalWrite(mPin.pin_EN_U, onoff);
+    digitalWrite(mPin.pin_EN_V, onoff);
+    digitalWrite(mPin.pin_EN_W, onoff);
     status = NONE;
 }
 
@@ -277,9 +276,9 @@ double jointController::angleInsideRangeLimits(double rawAngle)
  */
 void jointController::setPID(double P, double I, double D)
 {
-    mPid.P = P;
-    mPid.I = I;
-    mPid.D = D;
+    mPID.P = P;
+    mPID.I = I;
+    mPID.D = D;
     return;
 }
 
@@ -307,9 +306,9 @@ void jointController::setPID(double P, double I, double D)
  */
 void jointController::setPIDpos(double P_pos, double I_pos, double D_pos)
 {
-    mPid.P_pos = P_pos;
-    mPid.I_pos = I_pos;
-    mPid.D_pos = D_pos;
+    mPID.P_pos = P_pos;
+    mPID.I_pos = I_pos;
+    mPID.D_pos = D_pos;
     return;
 }
 
@@ -323,9 +322,9 @@ void jointController::setPIDpos(double P_pos, double I_pos, double D_pos)
  */
 void jointController::setPIDspeed(double P_speed, double I_speed, double D_speed)
 {
-    mPid.P_speed = P_speed;
-    mPid.I_speed = I_speed;
-    mPid.D_speed = D_speed;
+    mPID.P_speed = P_speed;
+    mPID.I_speed = I_speed;
+    mPID.D_speed = D_speed;
     return;
 }
 
@@ -414,9 +413,9 @@ void jointController::_readPWMArray(String filename)
             int idx = 0;
             digitalWrite(LED1, HIGH);
             while (txtFile.available() && idx < arraySize) {
-                PWM_U_values[idx] = txtFile.parseInt();
-                PWM_V_values[idx] = txtFile.parseInt();
-                PWM_W_values[idx] = txtFile.parseInt();
+                mPWM.PWM_U_values[idx] = txtFile.parseInt();
+                mPWM.PWM_V_values[idx] = txtFile.parseInt();
+                mPWM.PWM_W_values[idx] = txtFile.parseInt();
                 idx++;
             }
             txtFile.close();
@@ -460,15 +459,15 @@ void jointController:: _readMotorCalibration(String filename)
                 Serial.print(filename);
                 Serial.print("; offset=");Serial.print(mMotor.offset);
                 Serial.print("; phaseShift=");Serial.print(mMotor.phaseShift);
-                Serial.print("; P=");Serial.print(mPid.P);
-                Serial.print("; I=");Serial.print(mPid.I);
-                Serial.print("; D=");Serial.print(mPid.D);
-                Serial.print("; P_pos=");Serial.print(mPid.P_pos);
-                Serial.print("; I_pos=");Serial.print(mPid.I_pos);
-                Serial.print("; D_pos=");Serial.print(mPid.D_pos);
-                Serial.print("; P_speed=");Serial.print(mPid.P_speed);
-                Serial.print("; I_speed=");Serial.print(mPid.I_speed);
-                Serial.print("; D_speed=");Serial.print(mPid.D_speed);
+                Serial.print("; P=");Serial.print(mPID.P);
+                Serial.print("; I=");Serial.print(mPID.I);
+                Serial.print("; D=");Serial.print(mPID.D);
+                Serial.print("; P_pos=");Serial.print(mPID.P_pos);
+                Serial.print("; I_pos=");Serial.print(mPID.I_pos);
+                Serial.print("; D_pos=");Serial.print(mPID.D_pos);
+                Serial.print("; P_speed=");Serial.print(mPID.P_speed);
+                Serial.print("; I_speed=");Serial.print(mPID.I_speed);
+                Serial.print("; D_speed=");Serial.print(mPID.D_speed);
                 Serial.println();
             }
             digitalWrite(LED1, LOW);
@@ -502,9 +501,9 @@ void jointController::motorRunTest()
     if (angleTable >= arraySize ) { angleTable -= arraySize; }
     if (angleTable < 0)           { angleTable += arraySize; }
 
-    analogWrite(pin_U, 2048 + duty * PWM_U_values[angleTable] / 2048 );
-    analogWrite(pin_V, 2048 + duty * PWM_V_values[angleTable] / 2048 );
-    analogWrite(pin_W, 2048 + duty * PWM_W_values[angleTable] / 2048 );
+    analogWrite(mPin.pin_U, 2048 + duty * mPWM.PWM_U_values[angleTable] / 2048 );
+    analogWrite(mPin.pin_V, 2048 + duty * mPWM.PWM_V_values[angleTable] / 2048 );
+    analogWrite(mPin.pin_W, 2048 + duty * mPWM.PWM_W_values[angleTable] / 2048 );
 
     if (isLogging) {
         Serial.print(jointName);
@@ -598,7 +597,7 @@ void jointController::runToAnglePID()
     double speed = lastAngle - mAnglePos.jointActualAngle;                                      //! calculate speed damping
     lastAngle = mAnglePos.jointActualAngle;
     mIntegrator = constrain( mIntegrator + error, -100, 100);
-    double control = error * mPid.P + mIntegrator * mPid.I + speed * mPid.D;                    //! calculate PID controller
+    double control = error * mPID.P + mIntegrator * mPID.I + speed * mPID.D;                    //! calculate PID controller
  
     // duty cycle calculation
     if (control < 0){phaseShift *= -1;}                                                         //! turn counterclockwise
@@ -610,9 +609,9 @@ void jointController::runToAnglePID()
     if (angleTable < 0)          { angleTable += arraySize; }
  
     // motor setting
-    analogWrite(pin_U, mPWMResolution + duty * PWM_U_values[angleTable] / mPWMResolution );     //! set the PWM values to the U/V/W pins
-    analogWrite(pin_V, mPWMResolution + duty * PWM_V_values[angleTable] / mPWMResolution );
-    analogWrite(pin_W, mPWMResolution + duty * PWM_W_values[angleTable] / mPWMResolution );
+    analogWrite(mPin.pin_U, mPWMResolution + duty * mPWM.PWM_U_values[angleTable] / mPWMResolution );     //! set the PWM values to the U/V/W pins
+    analogWrite(mPin.pin_V, mPWMResolution + duty * mPWM.PWM_V_values[angleTable] / mPWMResolution );
+    analogWrite(mPin.pin_W, mPWMResolution + duty * mPWM.PWM_W_values[angleTable] / mPWMResolution );
 
     // if (isLogging) {
     //     Serial.print(jointName);
@@ -642,7 +641,7 @@ void jointController::runToAnglePOS()
     // PID pos calculation
     error_pos = newPos - mAnglePos.jointActualAngle;
     mIntegratorPos = constrain(mIntegratorPos + error_pos,-100, 100);
-    mSpeed = error_pos * mPid.P_pos + mIntegratorPos * mPid.I_pos + error_pos * mPid.D_pos; 
+    mSpeed = error_pos * mPID.P_pos + mIntegratorPos * mPID.I_pos + error_pos * mPID.D_pos; 
 
     // if (isLogging) {
     //     Serial.print(" Pos: ");
@@ -692,7 +691,7 @@ void jointController::runToAngleSpeed()
     // PID speed calculation
     double error_speed = mSpeed - speed;
     mIntegratorSpeed = constrain(mIntegratorSpeed + error_speed,-100, 100);
-    double control_speed = error_speed * mPid.P_speed + mIntegratorSpeed * mPid.I_speed + speed * mPid.D_speed; 
+    double control_speed = error_speed * mPID.P_speed + mIntegratorSpeed * mPID.I_speed + speed * mPID.D_speed; 
 
     // duty cycle calculation
     if (control_speed <  0){ phaseShift *= mMotor.phaseShift * -1;}
@@ -704,9 +703,9 @@ void jointController::runToAngleSpeed()
     if (angleTable < 0)          { angleTable += arraySize; }
  
     // motor setting
-    analogWrite(pin_U, mPWMResolution + duty * mMotor.speedReducer * PWM_U_values[angleTable] / mPWMResolution );
-    analogWrite(pin_V, mPWMResolution + duty * mMotor.speedReducer * PWM_V_values[angleTable] / mPWMResolution );
-    analogWrite(pin_W, mPWMResolution + duty * mMotor.speedReducer * PWM_W_values[angleTable] / mPWMResolution );
+    analogWrite(mPin.pin_U, mPWMResolution + duty * mPWM.PWM_U_values[angleTable] / mPWMResolution );
+    analogWrite(mPin.pin_V, mPWMResolution + duty * mPWM.PWM_V_values[angleTable] / mPWMResolution );
+    analogWrite(mPin.pin_W, mPWMResolution + duty * mPWM.PWM_W_values[angleTable] / mPWMResolution );
 
     // if (isLogging) {
     //     Serial.print(" Speed ");

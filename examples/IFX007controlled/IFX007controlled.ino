@@ -26,9 +26,9 @@ errorTypes checkError = NO_ERROR;
 const int U = 11;
 const int V = 10;
 const int W = 9;
-const int EN_U = 6;
-const int EN_V = 5;
-const int EN_W = 3;
+const int EN_U = 8;
+const int EN_V = 8;
+const int EN_W = 8;
 
 int duty = 40;
 
@@ -39,9 +39,9 @@ double pwmThree = 0;
 double angle = 0.0;
 float angle_rad = 0.0;
 
-double offset = -2.05;
+double offset = 30;
 //double PhaseShift = PI * 1 / 0.12466;
-double PhaseShift = 10.8;
+double PhaseShift = 200;
 
 //double PhaseShift = 10.80;
 //double PhaseShift = 6.70;

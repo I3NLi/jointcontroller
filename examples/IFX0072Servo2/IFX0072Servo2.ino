@@ -149,14 +149,8 @@ extern "C"
     integrator_speed = constrain(integrator_speed + error_speed, -100, 100);
     control_speed = error_speed * P_S + integrator_speed * I_S + speed * D_S;
     // speed_pre=error_speed;
-    if (control_speed >= 0)
-    {
-      PhaseShift = abs(PhaseShift) * 1;
-    } // turn clockwise
-    if (control_speed < 0)
-    {
-      PhaseShift = abs(PhaseShift) * -1;
-    } // turn counterclockwise
+    if (control_speed >= 0)     {      PhaseShift = abs(PhaseShift) * 1;    } // turn clockwise
+    if (control_speed < 0)    {      PhaseShift = abs(PhaseShift) * -1;    } // turn counterclockwise
 
     duty = constrain(abs(control_speed), 0, 2048); // Limit output to meaningful range
 

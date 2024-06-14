@@ -81,7 +81,7 @@
 #define PIN_PWM_U5          70                          //! P0.14
 #define PIN_PWM_V5          76                          //! P6.5
 #define PIN_PWM_W5          77                          //! P1.15
-#define PIN_PWM_EN5         75                          //! P5.3
+#define PIN_PWM_EN5         83                          //! P5.3
 // #define PIN_PWM_EN_U5       71                          //! P3.14
 // #define PIN_PWM_EN_V5       72                          //! P0.7
 // #define PIN_PWM_EN_W5       73                          //! P1.2

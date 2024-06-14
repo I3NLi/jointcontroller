@@ -15,12 +15,12 @@
 // const int EN_V = 5;
 // const int EN_W = 3;
 
-const int U = 3;
-const int V = 5;
-const int W = 6;
-const int EN_U = 72;
-const int EN_V = 72;
-const int EN_W = 72;
+const int U = 11;
+const int V = 10;
+const int W = 9;
+const int EN_U = 8;
+const int EN_V = 8;
+const int EN_W = 8;
 
 
 double i = 0;

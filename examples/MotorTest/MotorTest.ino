@@ -32,8 +32,8 @@ jointController link[jointTotalNum] = {
     // (jointController((char *)"X", true)),
     //    ( jointController( (char*)"Y", true ) ),
     //    ( jointController( (char*)"Z", true ) ),
-        ( jointController( (char*)"A", true ) ),
-    //    ( jointController( (char*)"B", true ) ),
+    //    ( jointController( (char*)"A", true ) ),
+        ( jointController( (char*)"B", true ) ),
     //    ( jointController( (char*)"C", true ) )
 };
 
@@ -102,21 +102,21 @@ void jointInit()
     // link[0].begin(ENABLED);
 
     // // // link[3] = A axis, SPI2, CS2,Slave1, index=4, A axis
-    link[0].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
-    link[0].initShield(PIN_PWM_U4,PIN_PWM_V4,PIN_PWM_W4,PIN_PWM_EN4,PIN_PWM_EN4,PIN_PWM_EN4);
-    link[0].setRangeLimits(minLimit_A,maxLimit_A,defaultPos_A);
-    link[0].setGearFactor(gearFactor_A);
-    link[0].setEpsilon(epsilon_A);
-    link[0].setDirection(1);
-    link[0].begin(ENABLED);
+    // link[0].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
+    // link[0].initShield(PIN_PWM_U4,PIN_PWM_V4,PIN_PWM_W4,PIN_PWM_EN4,PIN_PWM_EN4,PIN_PWM_EN4);
+    // link[0].setRangeLimits(minLimit_A,maxLimit_A,defaultPos_A);
+    // link[0].setGearFactor(gearFactor_A);
+    // link[0].setEpsilon(epsilon_A);
+    // link[0].setDirection(1);
+    // link[0].begin(ENABLED);
 
     // // link[4] = B axis, SPI2, CS2,Slave2, index=5, B axis
-    // link[4].initSensor(SPI3W2, PIN_SPI2_SS2, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S2);
-    // link[4].initShield(PIN_PWM_U5,PIN_PWM_V5,PIN_PWM_W5,PIN_PWM_EN5,PIN_PWM_EN5,PIN_PWM_EN5);
-    // link[4].setRangeLimits(minLimit_CR,maxLimit_CR,defaultPos_CR);
-    // link[4].setGearFactor(gearFactor_CR);
-    // link[4].setEpsilon(epsilon_B);
-    // link[4].begin();
+    link[0].initSensor(SPI3W2, PIN_SPI2_SS3, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S2);
+    link[0].initShield(PIN_PWM_U5,PIN_PWM_V5,PIN_PWM_W5,PIN_PWM_EN5,PIN_PWM_EN5,PIN_PWM_EN5);
+    link[0].setRangeLimits(minLimit_CR,maxLimit_CR,defaultPos_CR);
+    link[0].setGearFactor(gearFactor_CR);
+    link[0].setEpsilon(epsilon_B);
+    link[0].begin(ENABLED);
 
     // // link[5] = C axis, SPI2, CS3,Slave3, index=6, C axis
     // link[5].initSensor(SPI3W2, PIN_SPI2_SS3, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S3);

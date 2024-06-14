@@ -35,7 +35,7 @@ double testAngle            = 0.0;
 uint8_t line_flags          = 0;
 uint8_t char_counter        = 0;
 uint8_t c;
-uint16_t tcount             = 0;
+uint16_t count              = 0;
 
 uint8_t numProgLines        = 0;
 uint8_t actualProgLine      = 0;
@@ -46,14 +46,14 @@ uint8_t actualProgLine      = 0;
  * an is initialized with the init function of the jointController. The IF007T shields uses PWM and
  * GPIO pins which where set with the init function
  */
-#define jointTotalNum   6                                        //!> total number of controlled joints
-#define triggerTotalNum 4
+#define jointTotalNum   1                                        //!> total number of controlled joints
+#define triggerTotalNum 1
 jointController link[jointTotalNum] = {                         //!> joint controller array
-    ( jointController( (char*)"X", isLogging ) ),
-    ( jointController( (char*)"Y", isLogging ) ),
-    ( jointController( (char*)"Z", isLogging ) ),
-    ( jointController( (char*)"A", isLogging ) ),
-    ( jointController( (char*)"B", isLogging ) ),                     //!> refer as CR
+    // ( jointController( (char*)"X", isLogging ) ),
+    // ( jointController( (char*)"Y", isLogging ) ),
+    // ( jointController( (char*)"Z", isLogging ) ),
+    // ( jointController( (char*)"A", isLogging ) ),
+    // ( jointController( (char*)"B", isLogging ) ),                     //!> refer as CR
     ( jointController( (char*)"C", isLogging ) )                      //!> refer as CL
 };
 
@@ -64,11 +64,11 @@ jointController link[jointTotalNum] = {                         //!> joint contr
  */
 volatile double intent_angle[jointTotalNum] = {
     0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0
+    // 0.0,
+    // 0.0,
+    // 0.0,
+    // 0.0,
+    // 0.0
 };
 
 
@@ -153,18 +153,18 @@ extern "C"
 
         isIdle = checkAllJointsStatus();
 
-
-        tcount++;
-        if (tcount>=20)
-        {
-          for (int8_t i=0; i<jointTotalNum; i++){
-              Serial.print(link[i].mAnglePos.jointActualAngle);
-              Serial.print("; ");
-              //link[i].moveTo(intent_angle[i]);
-          }
-          Serial.println("");
-          tcount=0;
+        count++;
+        if (count>200){
+            Serial.print("X: ");
+            Serial.print(link[0].getActualAngle());Serial.print("\tY: ");
+            Serial.print(link[1].getActualAngle());Serial.print("\tZ: ");
+            Serial.print(link[2].getActualAngle());Serial.print("\tA: ");
+            Serial.print(link[3].getActualAngle());Serial.print("\tCR: ");
+            Serial.print(link[4].getActualAngle());Serial.print("\tCL: ");
+            Serial.println(link[5].getActualAngle());
+            count=0;
         }
+
 
         while (Serial.available() != 0)
         {
@@ -319,52 +319,59 @@ void blink(int8_t led, boolean state)
 void jointInit()
 {
     // link[0] = X axis = base; SPI1,CS1,Slave0
-    link[0].initSensor(SPI3W1, PIN_SPI1_SS0, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S0);
-    link[0].initShield(PIN_PWM_U1,PIN_PWM_V1,PIN_PWM_W1,PIN_PWM_EN1,PIN_PWM_EN1,PIN_PWM_EN1);
-    link[0].setRangeLimits(minLimit_X,maxLimit_X,defaultPos_X);
-    link[0].setGearFactor(gearFactor_X);
-    link[0].setEpsilon(epsilon_X);
-    link[0].begin(ENABLED);
+    // link[0].initSensor(SPI3W1, PIN_SPI1_SS0, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S0);
+    // link[0].initShield(PIN_PWM_U1,PIN_PWM_V1,PIN_PWM_W1,PIN_PWM_EN1,PIN_PWM_EN1,PIN_PWM_EN1);
+    // link[0].setRangeLimits(minLimit_X,maxLimit_X,defaultPos_X);
+    // link[0].setGearFactor(gearFactor_X);
+    // link[0].setEpsilon(epsilon_X);
+    // link[0].setPWMResolution(2048);
+    // link[0].begin(ENABLED);
 
-    // link[1] = Y axis, SPI1, CS1,Slave1
-    link[1].initSensor(SPI3W1, PIN_SPI1_SS1, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S1);
-    link[1].initShield(PIN_PWM_U2,PIN_PWM_V2,PIN_PWM_W2,PIN_PWM_EN2,PIN_PWM_EN2,PIN_PWM_EN2);
-    link[1].setRangeLimits(minLimit_Y,maxLimit_Y,defaultPos_Y);
-    link[1].setGearFactor(gearFactor_Y);
-    link[1].setEpsilon(epsilon_Y);
-    link[1].setDirection(-1);
-    link[1].begin(ENABLED);
+    // // link[1] = Y axis, SPI1, CS1,Slave1
+    // link[1].initSensor(SPI3W1, PIN_SPI1_SS1, PIN_SPI1_MISO, PIN_SPI1_MOSI, PIN_SPI1_SCK, Tle5012Ino::TLE5012B_S1);
+    // link[1].initShield(PIN_PWM_U2,PIN_PWM_V2,PIN_PWM_W2,PIN_PWM_EN2,PIN_PWM_EN2,PIN_PWM_EN2);
+    // link[1].setRangeLimits(minLimit_Y,maxLimit_Y,defaultPos_Y);
+    // link[1].setGearFactor(gearFactor_Y);
+    // link[1].setEpsilon(epsilon_Y);
+    // link[1].setDirection(-1);
+    // link[1].setPWMResolution(2048);
+    // link[1].begin(ENABLED);
 
-    // // link[2] = Z axis, SPI2, CS1,Slave0
-    link[2].initSensor(SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
-    link[2].initShield(PIN_PWM_U3,PIN_PWM_V3,PIN_PWM_W3,PIN_PWM_EN3,PIN_PWM_EN3,PIN_PWM_EN3);
-    link[2].setRangeLimits(minLimit_Z,maxLimit_Z,defaultPos_Z);
-    link[2].setGearFactor(gearFactor_Z);
-    link[2].setEpsilon(epsilon_Z);
-    link[2].begin(ENABLED);
+    // // // link[2] = Z axis, SPI2, CS1,Slave0
+    // link[2].initSensor(SPI3W2, PIN_SPI2_SS0, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S0);
+    // link[2].initShield(PIN_PWM_U3,PIN_PWM_V3,PIN_PWM_W3,PIN_PWM_EN3,PIN_PWM_EN3,PIN_PWM_EN3);
+    // link[2].setRangeLimits(minLimit_Z,maxLimit_Z,defaultPos_Z);
+    // link[2].setGearFactor(gearFactor_Z);
+    // link[2].setEpsilon(epsilon_Z);
+    // link[2].setPWMResolution(2048);
+    // link[2].begin(ENABLED);
 
-    // link[3] = A axis, SPI2, CS2,Slave1
-    link[3].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
-    link[3].initShield(PIN_PWM_U4,PIN_PWM_V4,PIN_PWM_W4,PIN_PWM_EN4,PIN_PWM_EN4,PIN_PWM_EN4);
-    link[3].setRangeLimits(minLimit_A,maxLimit_A,defaultPos_A);
-    link[3].setGearFactor(gearFactor_A);
-    link[3].setEpsilon(epsilon_A);
-    link[3].begin(DISABLED);
+    // // link[3] = A axis, SPI2, CS2,Slave1
+    // link[3].initSensor(SPI3W2, PIN_SPI2_SS1, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S1);
+    // link[3].initShield(PIN_PWM_U4,PIN_PWM_V4,PIN_PWM_W4,PIN_PWM_EN4,PIN_PWM_EN4,PIN_PWM_EN4);
+    // link[3].setRangeLimits(minLimit_A,maxLimit_A,defaultPos_A);
+    // link[3].setGearFactor(gearFactor_A);
+    // link[3].setEpsilon(epsilon_A);
+    // link[3].setPWMResolution(2048);
+    // link[3].begin(ENABLED);
 
-    // link[4] = B axis, SPI2, CS2,Slave2
-    link[4].initSensor(SPI3W2, PIN_SPI2_SS2, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S2);
-    link[4].initShield(PIN_PWM_U5,PIN_PWM_V5,PIN_PWM_W5,PIN_PWM_EN5,PIN_PWM_EN5,PIN_PWM_EN5);
-    link[4].setRangeLimits(minLimit_CR,maxLimit_CR,defaultPos_CR);
-    link[4].setEpsilon(epsilon_B);
-    link[4].begin(DISABLED);
+    // // link[4] = B axis, SPI2, CS2,Slave2
+    // link[4].initSensor(SPI3W2, PIN_SPI2_SS2, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S2);
+    // link[4].initShield(PIN_PWM_U5,PIN_PWM_V5,PIN_PWM_W5,PIN_PWM_EN5,PIN_PWM_EN5,PIN_PWM_EN5);
+    // link[4].setRangeLimits(minLimit_CR,maxLimit_CR,defaultPos_CR);
+    // link[4].setGearFactor(gearFactor_CR);
+    // link[4].setEpsilon(epsilon_B);
+    // link[4].setPWMResolution(2048);
+    // link[4].begin(ENABLED);
 
     // link[5] = C axis, SPI2, CS3,Slave3
-    link[5].initSensor(SPI3W2, PIN_SPI2_SS3, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S3);
-    link[5].initShield(PIN_PWM_U6,PIN_PWM_V6,PIN_PWM_W6,PIN_PWM_EN6,PIN_PWM_EN6,PIN_PWM_EN6);
-    link[5].setRangeLimits(minLimit_CL,maxLimit_CL,defaultPos_CL);
-    link[5].setGearFactor(gearFactor_CL);
-    link[5].setEpsilon(epsilon_C);
-    link[5].begin(DISABLED);
+    link[0].initSensor(SPI3W2, PIN_SPI2_SS3, PIN_SPI2_MISO, PIN_SPI2_MOSI, PIN_SPI2_SCK, Tle5012Ino::TLE5012B_S3);
+    link[0].initShield(PIN_PWM_U6,PIN_PWM_V6,PIN_PWM_W6,PIN_PWM_EN6,PIN_PWM_EN6,PIN_PWM_EN6);
+    link[0].setRangeLimits(minLimit_CL,maxLimit_CL,defaultPos_CL);
+    link[0].setGearFactor(gearFactor_CL);
+    link[0].setEpsilon(epsilon_C);
+    link[0].setPWMResolution(2048);
+    link[0].begin(ENABLED);
 
     return;
 }
@@ -461,17 +468,7 @@ void setup()
     // Setup jointController for each joint
     jointInit();
     Serial.println("All joints are ready");
-    delay(2000);
-
-    // // Setup first timer
-    // if(isPosSpeed)
-    // {
-    //     timerSetupDouble(500,1000);
-    //     Serial.println("Timer double interrupt for postion and speed added");
-    // }else{
-    //     timerSetupSingle(200);
-    //     Serial.println("Timer single interrupt added");
-    // }
+    delay(1000);
 
     // setup done
     Serial.println("\nARCTOS 2 XMC ready for calibration\n");
@@ -843,45 +840,6 @@ void simpleSystemParser(char *line)
                     Serial.print("Switch off selected joint: ");
                     Serial.println(int_value);
                     link[int_value].switchShieldOnOff(LOW);
-                    break;
-                case 'V' :
-                    if ( line[2] != 0 || value <= 0) {
-                        Serial.print("Invalid statement");
-                        Serial.println(STATUS_INVALID_STATEMENT);
-                    }
-                    switch(line[2]) {
-                        case 'X':
-                            Serial.print("Speedreducer X joint: ");
-                            Serial.println(value);
-                            link[0].mMotor.speedReducer = value;
-                            break;
-                        case 'Y':
-                            Serial.print("Speedreducer Y joint: ");
-                            Serial.println(value);
-                            link[1].mMotor.speedReducer = value;
-                            break;
-                        case 'Z':
-                            Serial.print("Speedreducer Z joint: ");
-                            Serial.println(value);
-                            link[2].mMotor.speedReducer = value;
-                            break;
-                        case 'A':
-                            Serial.print("Speedreducer A joint: ");
-                            Serial.println(value);
-                            link[3].mMotor.speedReducer = value;
-                            break;
-                        case 'B':
-                            Serial.print("Speedreducer B joint: ");
-                            Serial.println(value);
-                            link[4].mMotor.speedReducer = value;
-                            break;
-                        case 'C':
-                            Serial.print("Speedreducer C joint: ");
-                            Serial.println(value);
-                            link[5].mMotor.speedReducer = value;
-                            break;
-                    }
-
                     break;
                 // case 'S' : // Immediate stop
                 //     Serial.println("Stop Stop Stop, all shield PWM switched off");

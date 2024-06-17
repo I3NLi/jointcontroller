@@ -4,14 +4,16 @@
 #include <jointController.hpp>
 #include "const.h"
 
+
+
 using namespace tle5012;
 
 tle5012::SPIClass3W tle5012::SPI3W1(1);         //!< SPI port 1 on XMC4700 X1 according HW SPI setup
 tle5012::SPIClass3W tle5012::SPI3W2(2);         //!< SPI port 2 on XMC4700 X2 according HW SPI setup
 
-#define POLEPAIRS 4                               //! Number of pole pairs of the motor (number of poles / 2 )
-#define PHASE_DELAY_1 (double)2.094395102         // 120° offset
-#define PHASE_DELAY_2 (double)4.188790205         // 240° offset
+#define POLEPAIRS 4                             //! Number of pole pairs of the motor (number of poles / 2 )
+#define PHASE_DELAY_1 (double)2.094395102       //! 120° offset
+#define PHASE_DELAY_2 (double)4.188790205       //! 240° offset
 #define jointTotalNum   6
 
 boolean isLogging           = true;
@@ -62,9 +64,9 @@ void writePWMArray(String filename)
         if (txtFile) {
             for (int a=0;a<arraySize;a++)
             {
-                buffer +=  link[idx].mPWM.PWM_U_values[a]; buffer += ",";
-                buffer +=  link[idx].mPWM.PWM_V_values[a]; buffer += ",";
-                buffer +=  link[idx].mPWM.PWM_W_values[a]; buffer += "\r\n";
+                buffer += link[idx].mPWM.PWM_U_values[a]; buffer += ",";
+                buffer += link[idx].mPWM.PWM_V_values[a]; buffer += ",";
+                buffer += link[idx].mPWM.PWM_W_values[a]; buffer += "\r\n";
                 unsigned int chunkSize = txtFile.availableForWrite();
                 if (chunkSize && buffer.length() >= chunkSize)
                 {
@@ -85,48 +87,6 @@ void writePWMArray(String filename)
     }
     return;
 }
-
-
-/**
- * @brief 
- * 
- */
-void readPWMArray(String filename)
-{
-    File txtFile;
-
-    if (!SD.begin()) {
-        Serial.println("Card failed, or not present");
-        return;
-    }else{
-        // try to open the file for writing
-        txtFile = SD.open(filename);
-        if (txtFile) {
-            int a = 0;
-            digitalWrite(LED1, HIGH);
-            while (txtFile.available() && a < arraySize) {
-                link[idx].mPWM.PWM_U_values[a] = txtFile.parseInt();
-                link[idx].mPWM.PWM_V_values[a] = txtFile.parseInt();
-                link[idx].mPWM.PWM_W_values[a] = txtFile.parseInt();
-                a++;
-            }
-            txtFile.close();
-            if(isLogging)
-            {
-                Serial.print("PWM array read finished with number of values: "); Serial.println(arraySize);
-                Serial.print("from filename: "); Serial.println(filename);
-                txtFile.close();
-            }
-            digitalWrite(LED1, LOW);
-        }else{
-            Serial.print("error opening ");
-            Serial.println(filename);
-        }
-    }
-    return;
-
-}
-
 
 /**
  * @brief SDcard write routine for calibration values offset and PhaseShift.
@@ -339,8 +299,7 @@ void serialInput()
             isUncontrolledRun = false;
             isValidate = false;
             isSensorTesting = false;
-            String filename = String("PWM-C-") + String(link[idx].jointName) + String(".csv");
-            writePWMArray(filename);
+            writePWMArray( String("PWM-C-") + String(link[idx].jointName) + String(".csv") );
         }
 
         if (input == 'l')
@@ -350,8 +309,9 @@ void serialInput()
             isUncontrolledRun = false;
             isValidate = false;
             isSensorTesting = false;
-            String filename = String("PWM-C-") + String(link[idx].jointName) + String(".csv");
-            readPWMArray(filename);
+            link[idx].readFromSD(
+                String("PWM-C-") + String(link[idx].jointName) + String(".csv"),
+                String("CAL_C_") + String(link[idx].jointName) + String(".txt") );
         }
 
         if (input == 'k')
@@ -361,8 +321,9 @@ void serialInput()
             isUncontrolledRun = false;
             isValidate = false;
             isSensorTesting = false;
-            String filename = String("PWM") + String(link[idx].jointName) + String(".txt");
-            readPWMArray(filename);
+            link[idx].readFromSD(
+                String("PWM") + String(link[idx].jointName) + String(".csv"),
+                String("CAL") + String(link[idx].jointName) + String(".txt") );
         }
 
         if (input == 'w')
@@ -372,8 +333,7 @@ void serialInput()
             isUncontrolledRun = false;
             isValidate = false;
             isSensorTesting = false;
-            String filename = String("CAL_C_") + String(link[idx].jointName) + String(".txt");
-            writeCalibration(filename);
+            writeCalibration( String("CAL_C_") + String(link[idx].jointName) + String(".txt") );
         }
 
         /* phaseshift and offset calibration functions*/
@@ -696,8 +656,6 @@ void setup()
     Serial.println("Ready to calibrate");
     help();
 }
-
-
 
 void loop()
 {

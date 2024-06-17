@@ -79,13 +79,13 @@ jointController::~jointController()
 void jointController::begin(boolean enable)
 {
     jointEnable(enable);
-    String cal_file = String("CAL") + String(jointName) + String(".txt");
-    String pwm_file = String("PWM") + String(jointName) + String(".txt");
 
     if (isEnabled)
     {
-        _readPWMArray(pwm_file);
-        _readMotorCalibration( cal_file  );
+        readFromSD(
+            String("PWM") + String(jointName) + String(".txt"),
+            String("CAL") + String(jointName) + String(".txt")
+        );
     }
 
     switchShieldOnOff(HIGH);
@@ -333,12 +333,16 @@ void jointController::setPIDspeed(double P_speed, double I_speed, double D_speed
  *
  * @param off       the offset value
  * @param phase     the phase shift value
+ * @param duty      the duty cycle for the motor
+ * @param epsilon   the epsilon value, the sharpness of the motor
  */
-void jointController::setMotorCal(int16_t off, int16_t phase)
+void jointController::setMotorCal(int16_t off, int16_t phase, int16_t duty, double epsilon, double offset)
 {
     mMotor.offset = off;
     mMotor.phaseShift = phase;
-    mMotor.sensorOffset = 0.0;
+    mMotor.dutycycle = duty;
+    mMotor.epsilon =epsilon;
+    mMotor.sensorOffset = offset;
     return;
 }
 
@@ -368,7 +372,6 @@ double jointController::getActualAngle()
     return mAnglePos.jointActualAngle / mAnglePos.gearFactor;
 }
 
-
 /**
  * @brief function returns the actual position
  * The raw angle is fetched from the sensor as -180-180 degree,
@@ -397,11 +400,23 @@ double jointController::calculateAngle(double gf)
 }
 
 /**
+ * @brief Wrapper function for reading data from SDCard
+ * 
+ * @param pwmFile String, filename of the pwm array data
+ * @param calFile String, filename of the calibration data
+ */
+void jointController::readFromSD( String pwmFile, String calFile )
+{
+    _readPWMArray( pwmFile );
+    _readMotorCalibration( calFile );
+}
+
+/**
  * @brief Read the PWM array from SD card into the internal arrays
  * for PWM_U/V/W
  *
  */
-void jointController::_readPWMArray(String filename)
+void jointController::_readPWMArray( String filename )
 {
     if (!SD.begin()) {
         Serial.println("Card failed, or not present");
@@ -438,7 +453,7 @@ void jointController::_readPWMArray(String filename)
  * the PID values, the limits and the motor offset and phase shift.
  *
  */
-void jointController:: _readMotorCalibration(String filename)
+void jointController:: _readMotorCalibration( String filename )
 {
     if (!SD.begin()) {
         Serial.println("Card failed, or not present");
@@ -448,7 +463,7 @@ void jointController:: _readMotorCalibration(String filename)
         txtFile = SD.open(filename);
         if (txtFile) {
             digitalWrite(LED1, HIGH);
-            setMotorCal(txtFile.parseInt(),txtFile.parseInt());
+            setMotorCal( txtFile.parseInt(), txtFile.parseInt(), txtFile.parseInt(), txtFile.parseFloat(), txtFile.parseFloat() );
             setPIDpos(txtFile.parseInt(),txtFile.parseFloat(),txtFile.parseFloat());
             setPIDspeed(txtFile.parseFloat(),txtFile.parseFloat(),txtFile.parseFloat());
             setPID(txtFile.parseInt(),txtFile.parseFloat(),txtFile.parseFloat());
@@ -459,6 +474,9 @@ void jointController:: _readMotorCalibration(String filename)
                 Serial.print(filename);
                 Serial.print("; offset=");Serial.print(mMotor.offset);
                 Serial.print("; phaseShift=");Serial.print(mMotor.phaseShift);
+                Serial.print("; dutycycle=");Serial.print(mMotor.dutycycle);
+                Serial.print("; epsilon=");Serial.print(mMotor.epsilon);
+                Serial.print("; sensorOffset=");Serial.print(mMotor.sensorOffset);
                 Serial.print("; P=");Serial.print(mPID.P);
                 Serial.print("; I=");Serial.print(mPID.I);
                 Serial.print("; D=");Serial.print(mPID.D);

@@ -95,37 +95,39 @@ class jointController
 
         void begin(boolean enable);
 
-        errorTypes initSensor(SPIClass3W &bus, uint8_t csPin, uint8_t misoPin, uint8_t mosiPin, uint8_t sckPin, Tle5012Ino::slaveNum slave);
-        errorTypes initShield(uint8_t U,uint8_t V,uint8_t W,uint8_t EN_U,uint8_t EN_V,uint8_t EN_W);
+        errorTypes initSensor( SPIClass3W &bus, uint8_t csPin, uint8_t misoPin, uint8_t mosiPin, uint8_t sckPin, Tle5012Ino::slaveNum slave );
+        errorTypes initShield (uint8_t U, uint8_t V, uint8_t W, uint8_t EN_U, uint8_t EN_V, uint8_t EN_W );
 
-        void setDirection(int8_t dir);
-        void setPID(double P, double I, double D);
-        void setPIDpos(double P_pos, double I_pos, double D_pos);
-        void setPIDspeed(double P_speed, double I_speed, double D_speed);
-        void setEpsilon(double epsilonRange);
-        void setRangeLimits(double minLimit=0.0, double maxLimit=360.0, double startPos=0.0);
-        void setPWMResolution(int16_t resolution=2048);
-        void setMotorCal(int16_t off,int16_t phase);
-        void setGearFactor(double gearFactor=1.0);
-        void readFromSD(const char* filename);
+        void setDirection( int8_t dir );
+        void setPID( double P, double I, double D);
+        void setPIDpos( double P_pos, double I_pos, double D_pos );
+        void setPIDspeed( double P_speed, double I_speed, double D_speed );
+        void setEpsilon( double epsilonRange );
+        void setRangeLimits( double minLimit=0.0, double maxLimit=360.0, double startPos=0.0 );
+        void setPWMResolution( int16_t resolution=2048 );
+        void setMotorCal( int16_t off, int16_t phase, int16_t duty=0, double epsilon=0.0, double offset=0.0 );
+        void setGearFactor( double gearFactor=1.0 );
+        void readFromSD( const char* filename );
 
         double getActualAngle();
 
-        double setHomingPosition(double startPos=0.0);
-        double angleInsideRangeLimits(double rawAngle);
-        double calculateAngle(double gf=1.0);
+        double setHomingPosition( double startPos=0.0 );
+        double angleInsideRangeLimits( double rawAngle );
+        double calculateAngle( double gf=1.0 );
 
-        void jointEnable(boolean enable);
-        void switchShieldOnOff(int8_t onoff);
+        void jointEnable( boolean enable );
+        void switchShieldOnOff( int8_t onoff );
 
         eStatus checkStatus();
         eStatus homing();
-        eStatus moveTo(double target_angle);
+        eStatus moveTo( double target_angle );
 
         void runToAnglePID();
         void runToAnglePOS();
         void runToAngleSpeed();
         void motorRunTest();
+
+        void readFromSD( String pwmFile, String calFile );
 
         eStatus status = NONE;
 

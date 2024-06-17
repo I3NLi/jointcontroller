@@ -1,10 +1,18 @@
-
+/**
+ * @file MotorCalibrate.ino
+ * @author your name (you@domain.com)
+ * @brief Program allows easy setup and calibration of multiple BLDC motors
+ * for a 6 axis robot. Can also used for other setups and BLDC motor types.
+ * @version 0.1
+ * @date 2024-06-17
+ * 
+ * @copyright Copyright (c) 2024 Infineon technologies AG
+ * 
+ */
 #include <SD.h>
 #include <tlx5012-arduino.hpp>
 #include <jointController.hpp>
 #include "const.h"
-
-
 
 using namespace tle5012;
 
